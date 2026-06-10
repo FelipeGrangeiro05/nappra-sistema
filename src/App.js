@@ -3481,8 +3481,126 @@ function PainelPrincipal({ usuario, onLogout }) {
   );
 }
 
+const CHAVE_ACESSO = "nappra";
+const CHAVE_KEY    = "nappra_chave_ok";
+
+function TelaChaveAcesso({ onOk }) {
+  const [chave, setChave]   = useState("");
+  const [erro, setErro]     = useState(false);
+  const [mostrar, setMost]  = useState(false);
+  const [shake, setShake]   = useState(false);
+
+  const tentar = () => {
+    if (chave === CHAVE_ACESSO) {
+      localStorage.setItem(CHAVE_KEY, "1");
+      onOk();
+    } else {
+      setErro(true);
+      setChave("");
+      setShake(true);
+      setTimeout(() => setShake(false), 600);
+    }
+  };
+
+  return (
+    <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#0f1520,#1a0810,#0d1117)",
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                  fontFamily:"'Plus Jakarta Sans','Segoe UI',sans-serif" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Instrument+Serif:ital@1&display=swap');
+        @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes shake  { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-8px)} 40%,80%{transform:translateX(8px)} }
+        .gate-box { animation: fadeUp .5s ease both; }
+        .gate-shake { animation: shake .5s ease; }
+        .gate-inp:focus { outline:none; border-color:#c8973a !important; box-shadow:0 0 0 3px rgba(200,151,58,.15); }
+        .gate-btn:hover { background:#9b2335 !important; }
+        .gate-btn:active { transform:scale(.97); }
+      `}</style>
+
+      <div className={"gate-box"+(shake?" gate-shake":"")}
+        style={{ width:360, padding:"40px 36px", borderRadius:14,
+                 background:"rgba(255,255,255,.04)", backdropFilter:"blur(12px)",
+                 border:"1px solid rgba(200,151,58,.2)",
+                 boxShadow:"0 24px 64px rgba(0,0,0,.6)" }}>
+
+        {/* Brasão / logo */}
+        <div style={{ textAlign:"center", marginBottom:28 }}>
+          <div style={{ width:60, height:60, borderRadius:"50%",
+                        background:"linear-gradient(135deg,#4a0810,#7B1E2E)",
+                        border:"2px solid #c8973a",
+                        display:"inline-flex", alignItems:"center", justifyContent:"center",
+                        boxShadow:"0 4px 20px rgba(123,30,46,.5)", marginBottom:14 }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="#c8973a" strokeWidth="1.6"
+              width="28" height="28" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </div>
+          <div style={{ fontFamily:"'Instrument Serif',Georgia,serif",
+                        fontSize:22, color:"#fff", fontStyle:"italic", lineHeight:1.1 }}>
+            NAPPRA
+          </div>
+          <div style={{ fontSize:11, color:"#c8973a", fontWeight:700,
+                        letterSpacing:".15em", marginTop:4 }}>
+            CI² · MPRJ
+          </div>
+          <div style={{ fontSize:10, color:"rgba(255,255,255,.3)", marginTop:8,
+                        letterSpacing:".05em" }}>
+            Acesso restrito — insira a chave de acesso
+          </div>
+        </div>
+
+        {/* Campo */}
+        <div style={{ position:"relative", marginBottom:16 }}>
+          <input
+            className="gate-inp"
+            type={mostrar?"text":"password"}
+            placeholder="Chave de acesso"
+            value={chave}
+            onChange={e=>{ setChave(e.target.value); setErro(false); }}
+            onKeyDown={e=>e.key==="Enter"&&tentar()}
+            autoFocus
+            style={{ width:"100%", padding:"11px 44px 11px 14px",
+                     background:"rgba(255,255,255,.06)",
+                     border:"1px solid "+(erro?"#ef4444":"rgba(255,255,255,.12)"),
+                     borderRadius:8, color:"#fff", fontSize:14,
+                     boxSizing:"border-box", transition:"border-color .2s" }}/>
+          <button onClick={()=>setMost(v=>!v)}
+            style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)",
+                     background:"none", border:"none", cursor:"pointer", padding:0,
+                     color:"rgba(255,255,255,.35)", fontSize:16 }}>
+            {mostrar?"🙈":"👁"}
+          </button>
+        </div>
+
+        {erro && (
+          <div style={{ fontSize:11, color:"#ef4444", marginBottom:12,
+                        background:"rgba(239,68,68,.08)", borderRadius:6,
+                        padding:"6px 10px", border:"1px solid rgba(239,68,68,.2)" }}>
+            ⛔ Chave incorreta. Tente novamente.
+          </div>
+        )}
+
+        <button className="gate-btn" onClick={tentar}
+          style={{ width:"100%", padding:"11px", borderRadius:8, border:"none",
+                   background:"#7B1E2E", color:"#fff", fontSize:14, fontWeight:700,
+                   cursor:"pointer", transition:"background .15s",
+                   letterSpacing:".03em" }}>
+          Acessar o Sistema
+        </button>
+
+        <div style={{ textAlign:"center", marginTop:20, fontSize:9,
+                      color:"rgba(255,255,255,.15)", letterSpacing:".06em" }}>
+          MINISTÉRIO PÚBLICO DO ESTADO DO RIO DE JANEIRO
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [usuarioLogado, setUsuario] = useState(null);
+  const [chaveOk, setChaveOk]       = useState(()=>localStorage.getItem(CHAVE_KEY)==="1");
   return (
     <div translate="no">
       <style>{`
@@ -3622,9 +3740,11 @@ export default function App() {
           }
         }
       `}</style>
-      {usuarioLogado
-        ? <PainelPrincipal usuario={usuarioLogado} onLogout={()=>setUsuario(null)}/>
-        : <TelaLogin onLogin={setUsuario}/>}
+      {!chaveOk
+        ? <TelaChaveAcesso onOk={()=>setChaveOk(true)}/>
+        : usuarioLogado
+          ? <PainelPrincipal usuario={usuarioLogado} onLogout={()=>setUsuario(null)}/>
+          : <TelaLogin onLogin={setUsuario}/>}
     </div>
   );
 }
