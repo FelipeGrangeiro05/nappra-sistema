@@ -1,4 +1,4 @@
-﻿import { useState, useMemo, useEffect } from "react";
+﻿import React, { useState, useMemo, useEffect, useRef } from "react";
 import * as XLSX from "xlsx-js-style";
 import { unzipSync, zipSync, strFromU8, strToU8 } from "fflate";
 import jsPDF, { GState } from "jspdf";
@@ -32,8 +32,9 @@ const NIVEIS_COR = {
 };
 const PODE_ABRIR = ["Super Admin","Administrador"];
 
-/* ── 10 CASOS FICTÍCIOS ───────────────────── */
+/* ── CASOS CADASTRADOS ────────────────────── */
 const CASOS = [
+  { id:99, nome:"CASO TESTE",              status:"Ativo",             dataInicio:"01/06/2026", ultimaAt:"10/06/2026", diasSemMov:0,  resp:"Det. Ana Paula"      },
   { id:1,  nome:"CASO .30",                status:"Ativo",             dataInicio:"12/01/2025", ultimaAt:"29/05/2025", diasSemMov:2,  resp:"Det. Carlos Lima"    },
   { id:2,  nome:"CASO QUÉOPS",             status:"Ativo",             dataInicio:"03/03/2025", ultimaAt:"28/05/2025", diasSemMov:3,  resp:"Det. Ana Paula"      },
   { id:3,  nome:"CASO CASA CAIU",          status:"Aguardando Início", dataInicio:"—",          ultimaAt:"—",          diasSemMov:0,  resp:"Dr. Pedro Alves"    },
@@ -136,6 +137,12 @@ const ILHAS_DATA = {
     { nome:"OSINT",             status:"Pendente",     inicio:null,         fim:null          },
     { nome:"Relatório Técnico", status:"Pendente",     inicio:null,         fim:null          },
   ],
+  99: [
+    { nome:"Estudo de Caso",    status:"Concluída",    inicio:"01/06/2026", fim:"18/06/2026"  },
+    { nome:"Mineração",         status:"Em andamento", inicio:"19/06/2026", fim:null          },
+    { nome:"OSINT",             status:"Pendente",     inicio:null,         fim:null          },
+    { nome:"Relatório Técnico", status:"Pendente",     inicio:null,         fim:null          },
+  ],
 };
 
 const PF_DATA = [
@@ -146,6 +153,9 @@ const PF_DATA = [
   { casoId:7,  caso:"CASO VALE O ESCRITO",  nome:"Cláudio Mendes Brito", cpf:"555.666.777-88", nasc:"10/04/1971", vinculo:"Investigado Principal",  qualif:"Funcionário"  },
   { casoId:8,  caso:"CASO PEIXOTO",  nome:"Beatriz Fonseca Lima", cpf:"666.777.888-99", nasc:"28/11/1983", vinculo:"Investigada Principal",  qualif:"Empresária"   },
   { casoId:10, caso:"CASO FARMÁCIAS",   nome:"Rodrigo Sampaio Cruz", cpf:"777.888.999-00", nasc:"03/06/1976", vinculo:"Investigado Principal",  qualif:"Advogado"     },
+  { casoId:99, caso:"CASO TESTE",      nome:"RICARDO ANDRADE MAGRO", cpf:"***.709.518-**", nasc:"12/08/1967", vinculo:"Investigado Principal",  qualif:"Empresário"   },
+  { casoId:99, caso:"CASO TESTE",      nome:"CLAUDIA VASCONCELLOS",  cpf:"***.321.147-**", nasc:"03/05/1971", vinculo:"Cônjuge",               qualif:"Advogada"     },
+  { casoId:99, caso:"CASO TESTE",      nome:"PEDRO MELLO SANTOS",   cpf:"***.456.200-**", nasc:"27/11/1980", vinculo:"Sócio",                  qualif:"Empresário"   },
 ];
 
 const PJ_DATA = [
@@ -155,6 +165,8 @@ const PJ_DATA = [
   { casoId:7,  caso:"CASO VALE O ESCRITO",  razaoSocial:"Aurora Serviços ME",         cnpj:"88.111.222/0001-33", natureza:"ME",     situacao:"Irregular", vinculo:"Empresa Principal" },
   { casoId:8,  caso:"CASO PEIXOTO",  razaoSocial:"Kronos Investimentos LTDA",  cnpj:"99.222.333/0001-44", natureza:"LTDA",   situacao:"Ativa",     vinculo:"Empresa Principal" },
   { casoId:10, caso:"CASO FARMÁCIAS",   razaoSocial:"Viper Trading S/A",          cnpj:"11.333.444/0001-55", natureza:"S/A",    situacao:"Suspensa",  vinculo:"Empresa Principal" },
+  { casoId:99, caso:"CASO TESTE",      razaoSocial:"REFINARIA DE PETRÓLEOS DE MANGUINHOS S/A", cnpj:"33.412.081/0001-96", natureza:"S/A",    situacao:"Irregular", vinculo:"Empresa Principal" },
+  { casoId:99, caso:"CASO TESTE",      razaoSocial:"MANGUINHOS DERIVADOS LTDA",                cnpj:"12.789.456/0001-33", natureza:"LTDA",   situacao:"Ativa",     vinculo:"Empresa Relacionada" },
 ];
 
 const BENS_DATA = [
@@ -166,6 +178,9 @@ const BENS_DATA = [
   { casoId:7,  caso:"CASO VALE O ESCRITO",  tipo:"Veículo",   subtipo:"SUV",         descricao:"Porsche Cayenne — MNO",    valor:520000,  registro:"DETRAN-RJ" },
   { casoId:8,  caso:"CASO PEIXOTO",  tipo:"Imóvel",    subtipo:"Comercial",   descricao:"Galpão Industrial SP",     valor:1800000, registro:"SP-789012" },
   { casoId:10, caso:"CASO FARMÁCIAS",   tipo:"Embarcação",subtipo:"Lancha",      descricao:"Lancha 38 pés — RJ-98765", valor:680000,  registro:"Capitania" },
+  { casoId:99, caso:"CASO TESTE",      tipo:"Imóvel",    subtipo:"Residencial", descricao:"Casa em Niterói — Charitas",valor:1450000, registro:"RJ-987001" },
+  { casoId:99, caso:"CASO TESTE",      tipo:"Veículo",   subtipo:"Automóvel",   descricao:"Mercedes GLE 2023 — RJX-1199", valor:420000,  registro:"DETRAN-RJ" },
+  { casoId:99, caso:"CASO TESTE",      tipo:"Imóvel",    subtipo:"Comercial",   descricao:"Sala Comercial Centro RJ 80m²", valor:650000,  registro:"RJ-987002" },
 ];
 
 const ATIVIDADES = [
@@ -808,10 +823,11 @@ function MarcaDagua({ temaId }) {
 }
 
 /* ── Modal de Configurações ─────────────────────── */
-function ModalConfiguracoes({ onClose, temaAtual, setTema, usuario }) {
+function ModalConfiguracoes({ onClose, temaAtual, setTema, usuario, temaCasoAtual, setTemaCasoLocal }) {
   const [abaConf, setAbaConf] = useState("tema");
   const [temaHover, setTemaHover] = useState(null);
   const [temaSelecionado, setTemaSelecionado] = useState(temaAtual);
+  const [temaCasoSel, setTemaCasoSel] = useState(temaCasoAtual||"claro");
   const [diasAlerta, setDiasAlerta] = useState(()=>parseInt(localStorage.getItem("nappra_diasAlerta")||"7",10));
   const podeEditarAlerta = usuario.nivel==="Administrador"||usuario.nivel==="Super Admin";
 
@@ -822,6 +838,10 @@ function ModalConfiguracoes({ onClose, temaAtual, setTema, usuario }) {
   const salvar = () => {
     setTema(temaSelecionado);
     localStorage.setItem("nappra_tema_"+usuario.matricula, temaSelecionado);
+    if (setTemaCasoLocal) {
+      setTemaCasoLocal(temaCasoSel);
+      localStorage.setItem("nappra_tema_caso_"+usuario.matricula, temaCasoSel);
+    }
     onClose();
   };
 
@@ -903,6 +923,9 @@ function ModalConfiguracoes({ onClose, temaAtual, setTema, usuario }) {
                   A preferência é salva individualmente por usuário.
                   Passe o mouse para pré-visualizar.
                 </div>
+                <div style={{ fontSize:12, fontWeight:700, color:"#7B1E2E", marginBottom:10, letterSpacing:".04em", textTransform:"uppercase" }}>
+                  Tema da Página Inicial
+                </div>
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:10 }}>
                   {TEMAS.map(t=>{
                     const ativo = temaSelecionado===t.id;
@@ -966,6 +989,51 @@ function ModalConfiguracoes({ onClose, temaAtual, setTema, usuario }) {
                       </div>
                     );
                   })}
+                </div>
+
+                {/* TEMA DO BANCO DOS CASOS */}
+                <div style={{ marginTop:24, borderTop:"1px solid #e2e8f0", paddingTop:20 }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:"#7B1E2E", marginBottom:4, letterSpacing:".04em", textTransform:"uppercase" }}>
+                    Tema do Banco dos Casos
+                  </div>
+                  <div style={{ fontSize:11, color:"#64748b", marginBottom:14 }}>
+                    Estilo aplicado na tela individual de cada caso investigado.
+                  </div>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:10 }}>
+                    {[
+                      { id:"escuro", nome:"Escuro", desc:"Fundo escuro, ideal para análise noturna",
+                        bg:"#0f1520", card:"#1a1f2e", text:"#e2e8f0" },
+                      { id:"claro",  nome:"Claro",  desc:"Fundo claro, confortável para uso diurno",
+                        bg:"#f5f0e8", card:"#ffffff", text:"#1a1f2e" },
+                    ].map(t=>{
+                      const ativo = temaCasoSel===t.id;
+                      return (
+                        <div key={t.id} onClick={()=>setTemaCasoSel(t.id)} style={{
+                          border:`2px solid ${ativo?"#7B1E2E":"#e2e8f0"}`,
+                          borderRadius:8, overflow:"hidden", cursor:"pointer",
+                          boxShadow:ativo?"0 0 0 3px rgba(123,30,46,.15)":"none",
+                          transition:"all .2s",
+                        }}>
+                          <div style={{ height:48, background:t.bg, position:"relative", display:"flex", gap:6, alignItems:"flex-end", padding:"0 10px 8px" }}>
+                            <div style={{ width:40, height:26, borderRadius:4, background:t.card, border:"1px solid rgba(255,255,255,.1)" }}/>
+                            <div style={{ flex:1, display:"flex", flexDirection:"column", gap:3 }}>
+                              <div style={{ height:5, borderRadius:2, background:t.text, opacity:.5, width:"70%" }}/>
+                              <div style={{ height:4, borderRadius:2, background:t.text, opacity:.25, width:"45%" }}/>
+                            </div>
+                            {ativo&&(
+                              <div style={{ position:"absolute", top:6, right:6, width:18, height:18, borderRadius:"50%", background:"#7B1E2E", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" width="10" height="10"><polyline points="20 6 9 17 4 12"/></svg>
+                              </div>
+                            )}
+                          </div>
+                          <div style={{ padding:"8px 10px", background:ativo?"rgba(123,30,46,.04)":"#fff" }}>
+                            <div style={{ fontSize:11, fontWeight:700, color:ativo?"#7B1E2E":"#1a1f2e" }}>{t.nome}</div>
+                            <div style={{ fontSize:9, color:"#94a3b8", marginTop:1 }}>{t.desc}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </>
             )}
@@ -1282,6 +1350,2584 @@ function RelogioRodape() {
 }
 
 /* ══════════════════════════════════════════
+   CASO TESTE — DADOS RICOS (MOCK)
+══════════════════════════════════════════ */
+const CASO_TESTE_DETALHE = {
+  id: 99,
+  nome: "CASO LARANJA SECO",
+  natureza: "Investigação Patrimonial — Corrupção e Lavagem de Ativos",
+  portaria: "Port. CI²-NAPPRA nº 012/2026",
+  resp: "Det. Ana Paula Souza",
+  equipe: ["Det. Ana Paula Souza", "An. Carlos Lima", "An. Juliana Melo", "Per. Roberto Faria"],
+  dataInicio: "01/06/2026",
+  objetoSumario: "Investigação de esquema de corrupção envolvendo desvio de recursos públicos de contratos de obras, mediante utilização de empresas de fachada, laranjas e interpostas pessoas, com lavagem de ativos por meio de aquisição de imóveis, veículos de luxo, aeronaves e embarcações em valores incompatíveis com as rendas declaradas dos investigados.",
+  ilhas: [
+    { id:"estudo", nome:"Estudo de Caso",  pct:100, status:"Concluída",    acc:"#d4a84b", dias:18, total:18, inicio:"01/06/2026", fim:"18/06/2026" },
+    { id:"minera", nome:"Mineração",        pct:62,  status:"Em andamento", acc:"#a78bfa", dias:26, total:42, inicio:"19/06/2026", fim:null         },
+    { id:"osint",  nome:"OSINT",            pct:10,  status:"Em andamento", acc:"#60a5fa", dias:4,  total:30, inicio:"15/07/2026", fim:null         },
+    { id:"relat",  nome:"Relatório",        pct:0,   status:"Pendente",     acc:"#4ade80", dias:0,  total:25, inicio:null,         fim:null         },
+  ],
+  pf: [
+    { n:1,  classificacao:"Investigado", nome:"FERNANDO AUGUSTO LACERDA",  cpf:"***.709.518-**", rg:"08.112.445-3 IFP/RJ", sexo:"Masculino",  nasc:"14/03/1965", nacionalidade:"Brasileira", naturalidade:"Rio de Janeiro/RJ", passaporte:"BR114455X (válido até 2028)", vinculo:"Investigado Principal", direcao:"Controlador", qualif:"Empresário — Setor de Construção Civil", alvo_central:"FERNANDO AUGUSTO LACERDA", cpf_alvo:"***.709.518-**", pai:"Augusto Lacerda",      cpf_pai:"***.301.088-**", mae:"Rosa Lacerda",         cpf_mae:"***.882.014-**", servidor_publico:false, funcao_publica:"—", nomeacao:"—", exoneracao:"—",
+      obs:"Controlador da LACERDA INCORPORAÇÕES e ATLÂNTICO PARTICIPAÇÕES. Declarou renda anual de R$ 240.000 — patrimônio levantado supera R$ 28 milhões. Histórico de contratos com o Estado do RJ via dispensa de licitação.",
+      fontes:{ ps:true, pa:true, si:true, re:true, cx:true, ju:true, cl:true, on:true, os:true, sm:false, rc:true, cb:false },
+      enderecos:["Av. Vieira Souto, 880/1201 — Ipanema/RJ","Estrada do Joá, 5500 — Barra da Tijuca/RJ","Rua do Riachuelo, 120 — Centro/RJ (empresa)"],
+      telsFontes:["(21) 99870-****","(21) 99100-****"], emails:["f.lacerda@lacerdainc.com.br","augusto.fla@gmail.com"],
+      processos:["0045231-18.2024.8.19.0001 — Improbidade Administrativa, TJRJ","0012099-55.2023.4.02.5101 — Lavagem de Capitais, JFRJ"] },
+    { n:2,  classificacao:"Investigado", nome:"BEATRIZ LACERDA MOURA",     cpf:"***.321.147-**", rg:"10.887.331-2 IFP/RJ", sexo:"Feminino",   nasc:"22/07/1969", nacionalidade:"Brasileira", naturalidade:"Niterói/RJ",          passaporte:"BR229876C (válido até 2027)", vinculo:"Cônjuge",                  direcao:"Receptor",    qualif:"Servidora Pública Estadual — SEOBRAS/RJ", alvo_central:"FERNANDO AUGUSTO LACERDA", cpf_alvo:"***.709.518-**", pai:"Paulo Moura",         cpf_pai:"***.443.120-**", mae:"Helena Moura",         cpf_mae:"***.774.085-**", servidor_publico:true,  funcao_publica:"Gerente de Contratos — SEOBRAS/RJ",  nomeacao:"12/03/2011", exoneracao:"—",
+      obs:"Cônjuge do investigado principal. Gerente de Contratos na SEOBRAS/RJ — suspeita de direcionar licitações. Patrimônio declarado no IR incompatível com adições patrimoniais.",
+      fontes:{ ps:true, pa:true, si:true, re:true, cx:false, ju:true, cl:true, on:false, os:true, sm:true, rc:false, cb:true },
+      enderecos:["Av. Vieira Souto, 880/1201 — Ipanema/RJ"], telsFontes:["(21) 99412-****"], emails:["b.lacerda@seobras.rj.gov.br","beatriz.moura@hotmail.com"],
+      processos:["0045231-18.2024.8.19.0001 — Improbidade Administrativa (litisconsorte), TJRJ"] },
+    { n:3,  classificacao:"Investigado", nome:"CARLOS MOURA FILHO",        cpf:"***.456.200-**", rg:"14.553.002-1 IFP/RJ", sexo:"Masculino",  nasc:"03/09/1972", nacionalidade:"Brasileira", naturalidade:"São Paulo/SP",         passaporte:"BR334421D (válido até 2026)", vinculo:"Sócio",                    direcao:"Operador",    qualif:"Contador — CRC/RJ 88.345",               alvo_central:"FERNANDO AUGUSTO LACERDA", cpf_alvo:"***.709.518-**", pai:"Carlos Moura",        cpf_pai:"***.221.099-**", mae:"Sônia Moura",          cpf_mae:"***.662.311-**", servidor_publico:false, funcao_publica:"—", nomeacao:"—", exoneracao:"—",
+      obs:"Sócio-contador responsável pela contabilidade de 4 empresas do grupo. Suspeito de manipulação de notas fiscais e declarações tributárias.",
+      fontes:{ ps:true, pa:true, si:false, re:true, cx:false, ju:true, cl:false, on:false, os:false, sm:false, rc:true, cb:false },
+      enderecos:["Rua Voluntários da Pátria, 88 — Botafogo/RJ"], telsFontes:["(21) 99100-****"], emails:["cmouraf@contadores.net"], processos:[] },
+    { n:4,  classificacao:"Laranja",     nome:"AUGUSTO PINHEIRO NETO",     cpf:"***.887.633-**", rg:"02.778.110-5 IFP/RJ", sexo:"Masculino",  nasc:"11/01/1948", nacionalidade:"Brasileira", naturalidade:"Petrópolis/RJ",        passaporte:"—",                           vinculo:"Interposta Pessoa",         direcao:"Laranja",     qualif:"Aposentado — INSS",                       alvo_central:"FERNANDO AUGUSTO LACERDA", cpf_alvo:"***.709.518-**", pai:"Augusto Pinheiro",    cpf_pai:"***.190.044-**", mae:"Dulce Pinheiro",       cpf_mae:"***.503.287-**", servidor_publico:false, funcao_publica:"—", nomeacao:"—", exoneracao:"—",
+      obs:"Laranja clássico. Figura como sócio majoritário de 3 empresas. Renda declarada R$ 24.000/ano. Possui imóvel avaliado em R$ 4,7M e Bentley em seu nome. Não sabe explicar a origem dos bens.",
+      fontes:{ ps:true, pa:false, si:false, re:true, cx:false, ju:false, cl:false, on:false, os:false, sm:false, rc:false, cb:true },
+      enderecos:["Rua Frei Caneca, 300 — Tijuca/RJ"], telsFontes:["(21) 99300-****"], emails:[], processos:[] },
+    { n:5,  classificacao:"Laranja",     nome:"VANESSA TEIXEIRA BRUM",     cpf:"***.112.390-**", rg:"22.001.887-4 IFP/RJ", sexo:"Feminino",   nasc:"15/06/1985", nacionalidade:"Brasileira", naturalidade:"Duque de Caxias/RJ",  passaporte:"—",                           vinculo:"Interposta Pessoa",         direcao:"Laranja",     qualif:"Diarista / Doméstica",                    alvo_central:"FERNANDO AUGUSTO LACERDA", cpf_alvo:"***.709.518-**", pai:"Lúcio Brum",          cpf_pai:"***.340.711-**", mae:"Ana Teixeira",         cpf_mae:"***.897.430-**", servidor_publico:false, funcao_publica:"—", nomeacao:"—", exoneracao:"—",
+      obs:"Renda mensal declarada R$ 1.600. Consta como sócia da BRUMEX SERVIÇOS ME — R$ 4,2M em contratos públicos. Imóvel de R$ 980.000 em seu nome.",
+      fontes:{ ps:true, pa:false, si:false, re:true, cx:false, ju:false, cl:false, on:false, os:false, sm:false, rc:false, cb:false },
+      enderecos:["Rua das Magnólias, 45 — Deodoro/RJ"], telsFontes:["(21) 97700-****"], emails:[], processos:[] },
+    { n:6,  classificacao:"Investigado", nome:"ROBERTO SAMPAIO CRUZ",      cpf:"***.204.711-**", rg:"16.442.890-7 IFP/RJ", sexo:"Masculino",  nasc:"28/04/1978", nacionalidade:"Brasileira", naturalidade:"Niterói/RJ",          passaporte:"BR441892F (válido até 2029)", vinculo:"Sócio",                    direcao:"Operador",    qualif:"Engenheiro Civil — CREA/RJ 112.440",      alvo_central:"FERNANDO AUGUSTO LACERDA", cpf_alvo:"***.709.518-**", pai:"Roberto Cruz",        cpf_pai:"***.118.553-**", mae:"Carla Cruz",           cpf_mae:"***.660.224-**", servidor_publico:false, funcao_publica:"—", nomeacao:"—", exoneracao:"—",
+      obs:"Diretor técnico da SAMPAIO ENGENHARIA. Emitiu laudos e ARTs de obras que não foram executadas. Assinou projetos superfaturados na SEOBRAS.",
+      fontes:{ ps:true, pa:true, si:false, re:true, cx:false, ju:true, cl:false, on:false, os:true, sm:false, rc:true, cb:false },
+      enderecos:["Rua Barão de Mesquita, 777 — Andaraí/RJ"], telsFontes:["(21) 99600-****","(21) 3222-****"], emails:["r.sampaio@sampaioeng.com.br"],
+      processos:["0031122-77.2025.8.19.0003 — Ação Cível, TJRJ"] },
+    { n:7,  classificacao:"Investigado", nome:"PATRÍCIA NUNES VALE",       cpf:"***.530.884-**", rg:"18.334.001-6 IFP/RJ", sexo:"Feminino",   nasc:"09/12/1981", nacionalidade:"Brasileira", naturalidade:"Rio de Janeiro/RJ",   passaporte:"—",                           vinculo:"Sócio Oculto",              direcao:"Receptor",    qualif:"Nutricionista — CRN/RJ 14.552",           alvo_central:"FERNANDO AUGUSTO LACERDA", cpf_alvo:"***.709.518-**", pai:"Francisco Vale",      cpf_pai:"***.778.300-**", mae:"Irene Nunes",          cpf_mae:"***.291.647-**", servidor_publico:false, funcao_publica:"—", nomeacao:"—", exoneracao:"—",
+      obs:"Sócia oculta da VALE VERDE EMPREENDIMENTOS. Recebeu R$ 1,8M disfarçados de pro-labore. Avião e Audi Q8 em seu nome.",
+      fontes:{ ps:true, pa:false, si:false, re:true, cx:true, ju:false, cl:false, on:false, os:false, sm:false, rc:false, cb:false },
+      enderecos:["Rua Cosme Velho, 900 — Cosme Velho/RJ"], telsFontes:["(21) 98800-****"], emails:["p.nunes@gmail.com"], processos:[] },
+    { n:8,  classificacao:"Laranja",     nome:"LEANDRO MORAES DIAS",       cpf:"***.743.026-**", rg:"25.119.774-8 IFP/RJ", sexo:"Masculino",  nasc:"30/08/1990", nacionalidade:"Brasileira", naturalidade:"São Gonçalo/RJ",       passaporte:"—",                           vinculo:"Testa de Ferro",            direcao:"Laranja",     qualif:"Motorista — CNH Cat. D",                  alvo_central:"FERNANDO AUGUSTO LACERDA", cpf_alvo:"***.709.518-**", pai:"Leandro Moraes",      cpf_pai:"***.433.862-**", mae:"Teresinha Dias",       cpf_mae:"***.017.590-**", servidor_publico:false, funcao_publica:"—", nomeacao:"—", exoneracao:"—",
+      obs:"Diretor-presidente formal da PÁTRIA OBRAS E REFORMAS. R$ 6,7M em contratos. Declarou não saber o que era CNPJ em depoimento.",
+      fontes:{ ps:true, pa:false, si:false, re:false, cx:false, ju:false, cl:false, on:false, os:false, sm:false, rc:false, cb:false },
+      enderecos:["Rua Jorge Rudge, 55 — São Gonçalo/RJ"], telsFontes:["(21) 97300-****"], emails:[], processos:[] },
+    { n:9,  classificacao:"Investigado", nome:"MARCELA FONSECA LIMA",      cpf:"***.618.332-**", rg:"12.007.443-9 IFP/RJ", sexo:"Feminino",   nasc:"14/02/1976", nacionalidade:"Brasileira", naturalidade:"Belo Horizonte/MG",   passaporte:"BR887233K (válido até 2027)", vinculo:"Sócio Administrador",       direcao:"Operador",    qualif:"Arquiteta — CAU/RJ A98765-0",             alvo_central:"FERNANDO AUGUSTO LACERDA", cpf_alvo:"***.709.518-**", pai:"João Fonseca",        cpf_pai:"***.552.186-**", mae:"Célia Lima",           cpf_mae:"***.340.872-**", servidor_publico:false, funcao_publica:"—", nomeacao:"—", exoneracao:"—",
+      obs:"Sócia-administradora da FONSECA & LIMA ASSESSORIA. Pareceres técnicos de obras inexistentes. Ap. Copacabana R$ 2,1M e iate registrados em seu nome.",
+      fontes:{ ps:true, pa:true, si:false, re:true, cx:false, ju:true, cl:false, on:true, os:false, sm:true, rc:false, cb:false },
+      enderecos:["Av. Atlântica, 3800/504 — Copacabana/RJ"], telsFontes:["(21) 99900-****"], emails:["marcela.fl@flassessoria.com.br","marcela_fonseca@gmail.com"], processos:[] },
+    { n:10, classificacao:"Investigado", nome:"SILVIO GENTIL CORRÊA",      cpf:"***.399.177-**", rg:"05.221.660-0 IFP/RJ", sexo:"Masculino",  nasc:"05/11/1963", nacionalidade:"Brasileira", naturalidade:"Rio de Janeiro/RJ",   passaporte:"BR552110P (válido até 2025)", vinculo:"Servidor Público",          direcao:"Controlador", qualif:"Gerente de Licitações — SEOBRAS/RJ",       alvo_central:"SILVIO GENTIL CORRÊA",     cpf_alvo:"***.399.177-**", pai:"Gentil Corrêa",       cpf_pai:"***.700.143-**", mae:"Lúcia Corrêa",         cpf_mae:"***.334.927-**", servidor_publico:true,  funcao_publica:"Gerente de Licitações — SEOBRAS/RJ", nomeacao:"15/08/2002", exoneracao:"—",
+      obs:"Gerente de Licitações da SEOBRAS há 22 anos. Suspeito de direcionar editais. Patrimônio levantado R$ 4,2M: 2 imóveis, 2 aeronaves e 2 embarcações.",
+      fontes:{ ps:true, pa:true, si:true, re:true, cx:true, ju:true, cl:true, on:false, os:true, sm:false, rc:true, cb:true },
+      enderecos:["Rua Bambina, 120 — Botafogo/RJ","Estrada da Independência km12 — Petrópolis/RJ (sítio)"], telsFontes:["(21) 99200-****","(21) 98500-****"], emails:["s.gentil@seobras.rj.gov.br"],
+      processos:["0019988-33.2025.8.19.0002 — Improbidade, TJRJ","0004321-66.2025.4.02.5101 — Corrupção Passiva, JFRJ"] },
+    { n:11, classificacao:"Investigado", nome:"ADRIANA COSTA PRADO",       cpf:"***.055.840-**", rg:"20.778.334-5 IFP/RJ", sexo:"Feminino",   nasc:"17/09/1979", nacionalidade:"Brasileira", naturalidade:"Rio de Janeiro/RJ",   passaporte:"BR661890Q (válido até 2028)", vinculo:"Advogado",                  direcao:"Intermediário",qualif:"Advogada — OAB/RJ 201.778",               alvo_central:"FERNANDO AUGUSTO LACERDA", cpf_alvo:"***.709.518-**", pai:"Marco Prado",         cpf_pai:"***.881.022-**", mae:"Sueli Prado",          cpf_mae:"***.119.603-**", servidor_publico:false, funcao_publica:"—", nomeacao:"—", exoneracao:"—",
+      obs:"Advogada do grupo. Suspeita de atuar no planejamento jurídico do esquema. Intermedeia repasses entre as empresas e os beneficiários.",
+      fontes:{ ps:true, pa:false, si:false, re:true, cx:true, ju:true, cl:false, on:false, os:false, sm:false, rc:false, cb:false },
+      enderecos:["Av. Rio Branco, 1500/808 — Centro/RJ"], telsFontes:["(21) 99450-****"], emails:["adriana.prado@prado-adv.com.br"], processos:[] },
+    { n:12, classificacao:"Investigado", nome:"HENRIQUE BRAGA MATTOS",     cpf:"***.270.519-**", rg:"13.445.882-2 IFP/RJ", sexo:"Masculino",  nasc:"08/05/1974", nacionalidade:"Brasileira", naturalidade:"Campos dos Goytacazes/RJ", passaporte:"BR773412R (válido até 2026)", vinculo:"Sócio",                 direcao:"Operador",    qualif:"Administrador de Empresas — CRA/RJ 55.102", alvo_central:"FERNANDO AUGUSTO LACERDA", cpf_alvo:"***.709.518-**", pai:"Hélio Braga",         cpf_pai:"***.560.291-**", mae:"Maria Mattos",         cpf_mae:"***.728.045-**", servidor_publico:false, funcao_publica:"—", nomeacao:"—", exoneracao:"—",
+      obs:"Sócio-gerente da BRAGA ADMINISTRADORA. Gere portfólio imobiliário do grupo. Figurante em 7 contratos de locação de imóveis para o poder público.",
+      fontes:{ ps:true, pa:true, si:false, re:true, cx:false, ju:false, cl:false, on:false, os:false, sm:false, rc:true, cb:false },
+      enderecos:["Rua Sá Ferreira, 66 — Copacabana/RJ"], telsFontes:["(21) 99340-****"], emails:["h.braga@bragaadm.com.br"], processos:[] },
+    { n:13, classificacao:"Laranja",     nome:"ISABELA QUEIROZ SANTOS",    cpf:"***.831.604-**", rg:"28.003.117-1 IFP/RJ", sexo:"Feminino",   nasc:"20/03/1988", nacionalidade:"Brasileira", naturalidade:"Niterói/RJ",          passaporte:"—",                           vinculo:"Interposta Pessoa",         direcao:"Laranja",     qualif:"Estudante de Pós-Graduação",               alvo_central:"LEANDRO MORAES DIAS",      cpf_alvo:"***.743.026-**", pai:"Jorge Queiroz",       cpf_pai:"***.982.310-**", mae:"Rita Santos",          cpf_mae:"***.145.760-**", servidor_publico:false, funcao_publica:"—", nomeacao:"—", exoneracao:"—",
+      obs:"Esposa de Leandro Moraes Dias (laranja). Sócia da QUEIROZ LOCAÇÕES. Veículo e embarcação registrados em seu nome. Renda declarada: isenta.",
+      fontes:{ ps:true, pa:false, si:false, re:false, cx:false, ju:false, cl:false, on:false, os:false, sm:true, rc:false, cb:false },
+      enderecos:["Rua Jorge Rudge, 55 — São Gonçalo/RJ"], telsFontes:["(21) 97300-****"], emails:["isabela.q@gmail.com"], processos:[] },
+    { n:14, classificacao:"Investigado", nome:"TÚLIO RESENDE FARO",        cpf:"***.148.263-**", rg:"11.660.345-3 IFP/RJ", sexo:"Masculino",  nasc:"02/10/1970", nacionalidade:"Brasileira", naturalidade:"Juiz de Fora/MG",     passaporte:"BR990045S (válido até 2027)", vinculo:"Intermediário Financeiro",  direcao:"Intermediário",qualif:"Operador de Câmbio — Suspenso pelo BACEN",  alvo_central:"FERNANDO AUGUSTO LACERDA", cpf_alvo:"***.709.518-**", pai:"Nélio Resende",       cpf_pai:"***.227.881-**", mae:"Graça Faro",           cpf_mae:"***.613.042-**", servidor_publico:false, funcao_publica:"—", nomeacao:"—", exoneracao:"—",
+      obs:"Operador financeiro suspenso pelo BACEN em 2022. Suspeito de intermediar conversão de recursos em ativos no exterior. Gestor da RESENDE FACTORING.",
+      fontes:{ ps:true, pa:true, si:false, re:true, cx:true, ju:true, cl:false, on:false, os:true, sm:false, rc:true, cb:false },
+      enderecos:["Av. das Américas, 3434/202 — Barra da Tijuca/RJ"], telsFontes:["(21) 99700-****","(21) 98700-****"], emails:["tulio.faro@resendecapital.com"],
+      processos:["0098001-44.2022.1.00.0001 — Processo Administrativo BACEN"] },
+    { n:15, classificacao:"Colaborador", nome:"JORGE CAVALCANTE MELO",     cpf:"***.912.077-**", rg:"07.331.908-7 IFP/RJ", sexo:"Masculino",  nasc:"19/04/1960", nacionalidade:"Brasileira", naturalidade:"Recife/PE",           passaporte:"BR112244T (válido até 2025)", vinculo:"Ex-Sócio / Colaborador",   direcao:"Colaborador", qualif:"Ex-Empresário — Colaboração Premiada MPRJ/2026", alvo_central:"FERNANDO AUGUSTO LACERDA", cpf_alvo:"***.709.518-**", pai:"Antônio Cavalcante",  cpf_pai:"***.455.019-**", mae:"Conceição Melo",       cpf_mae:"***.800.237-**", servidor_publico:false, funcao_publica:"—", nomeacao:"—", exoneracao:"—",
+      obs:"Ex-sócio da LACERDA INCORPORAÇÕES. Celebrou acordo de colaboração premiada em 04/2026. Forneceu documentos e relatos sobre o funcionamento do esquema. Em proteção.",
+      fontes:{ ps:true, pa:true, si:false, re:true, cx:false, ju:true, cl:true, on:false, os:true, sm:false, rc:false, cb:false },
+      enderecos:["Endereço sob sigilo"], telsFontes:["Contato via patrono"], emails:[],
+      processos:["Acordo de Colaboração Premiada — MPRJ/2026 — SIGILOSO"] },
+  ],
+  pj: [
+    {
+      n:1, classificacao:"Empresa Principal", razao:"LACERDA INCORPORAÇÕES S/A", cnpj:"33.412.081/0001-96",
+      nome_fantasia:"LACERDA INC", data_abertura:"14/03/2005", natureza:"S/A", situacao:"Irregular", vinculo:"Empresa Principal",
+      logradouro:"Rua do Riachuelo", numero:"120", complemento:"4º andar", bairro:"Centro", municipio:"Rio de Janeiro", uf:"RJ", cep:"20230-010",
+      telefone:"(21) 3344-5500", email:"contato@lacerdainc.com.br", cnae_principal:"4120-4/00 — Construção de edifícios",
+      cnae_secundario:"6810-2/01 — Compra e venda de imóveis próprios", capital_social:"85000000", integralizado:"85000000", pct_capital:"100%",
+      alvo_central:"FERNANDO AUGUSTO LACERDA", cpf_alvo:"***.709.518-**", orgao_publico:"SEOBRAS/RJ — Contratante principal",
+      obs:"Capital social R$ 85.000.000. Irregularidade junto à RFB desde 2024. Contratada diretamente pelo Estado do RJ em R$ 42 milhões (2021-2025). Objeto: construção civil e incorporação imobiliária.",
+      fontes:{ ps:false, pa:true, si:false, re:true, cx:true, ju:true, cl:false, on:false, os:false, sm:false, rc:true, cb:false },
+      pessoas:[
+        { nome:"FERNANDO AUGUSTO LACERDA",  cpf:"***.709.518-**", papel:"Controlador / CEO",        entrada:"2005", saida:"atual" },
+        { nome:"BEATRIZ LACERDA MOURA",     cpf:"***.321.147-**", papel:"Diretora Administrativa",  entrada:"2010", saida:"atual" },
+        { nome:"CARLOS MOURA FILHO",        cpf:"***.456.200-**", papel:"Diretor Financeiro",        entrada:"2012", saida:"atual" },
+        { nome:"JORGE CAVALCANTE MELO",     cpf:"***.912.077-**", papel:"Ex-Sócio (saída 2025)",    entrada:"2005", saida:"2025" },
+      ],
+    },
+    { n:2,  classificacao:"Holding",           razao:"ATLÂNTICO PARTICIPAÇÕES S/A",          cnpj:"12.789.456/0001-33", nome_fantasia:"ATLÂNTICO PART.",    data_abertura:"20/06/2008", natureza:"S/A",    situacao:"Ativa",      vinculo:"Holding do Grupo",         logradouro:"Av. Rio Branco",         numero:"1500", complemento:"12º andar", bairro:"Centro",      municipio:"Rio de Janeiro", uf:"RJ", cep:"20040-901", telefone:"(21) 3344-5510", email:"contato@atlanticopart.com.br",  cnae_principal:"6422-1/00 — Bancos múltiplos",          cnae_secundario:"6430-2/00 — Caixas econômicas",             capital_social:"200000",   integralizado:"200000",   pct_capital:"100%", alvo_central:"FERNANDO AUGUSTO LACERDA", cpf_alvo:"***.709.518-**", orgao_publico:"—",                                obs:"Holding que concentra participações nas demais empresas. Capital R$ 200.000 — movimentação bancária R$ 38 milhões/ano.", fontes:{ ps:false, pa:true, si:false, re:true, cx:false, ju:true, cl:false, on:false, os:false, sm:false, rc:true, cb:false }, pessoas:[{ nome:"FERNANDO AUGUSTO LACERDA", cpf:"***.709.518-**", papel:"Controlador (99%)", entrada:"2008", saida:"atual" },{ nome:"CARLOS MOURA FILHO", cpf:"***.456.200-**", papel:"Sócio (1%)", entrada:"2008", saida:"atual" }] },
+    { n:3,  classificacao:"Empresa de Fachada",razao:"VALE VERDE EMPREENDIMENTOS EIRELI",    cnpj:"88.144.720/0001-55", nome_fantasia:"VALE VERDE",         data_abertura:"08/03/2019", natureza:"EIRELI",  situacao:"Ativa",      vinculo:"Empresa de Fachada",       logradouro:"Rua Cosme Velho",        numero:"900",  complemento:"Apt 301",   bairro:"Cosme Velho",  municipio:"Rio de Janeiro", uf:"RJ", cep:"22241-090", telefone:"(21) 9 8800-****", email:"valeverde@gmail.com",          cnae_principal:"4120-4/00 — Construção de edifícios",   cnae_secundario:"6810-2/01 — Compra e venda de imóveis",     capital_social:"100000",   integralizado:"100000",   pct_capital:"100%", alvo_central:"FERNANDO AUGUSTO LACERDA", cpf_alvo:"***.709.518-**", orgao_publico:"SEOBRAS/RJ",                       obs:"Empresa de fachada. Emite NFs sem prestação real de serviço. Mov. bancária R$ 6,4M sem correspondência.", fontes:{ ps:false, pa:true, si:false, re:true, cx:false, ju:false, cl:false, on:false, os:false, sm:false, rc:false, cb:false }, pessoas:[{ nome:"PATRÍCIA NUNES VALE", cpf:"***.530.884-**", papel:"Sócia Única", entrada:"2019", saida:"atual" },{ nome:"AUGUSTO PINHEIRO NETO", cpf:"***.887.633-**", papel:"Procurador", entrada:"2019", saida:"atual" }] },
+    { n:4,  classificacao:"Empresa de Fachada",razao:"BRUMEX SERVIÇOS ME",                   cnpj:"55.321.890/0001-11", nome_fantasia:"BRUMEX",             data_abertura:"12/11/2020", natureza:"ME",      situacao:"Irregular",  vinculo:"Empresa de Fachada",       logradouro:"Rua das Magnólias",      numero:"45",   complemento:"Ap. 101",   bairro:"Deodoro",      municipio:"Rio de Janeiro", uf:"RJ", cep:"21735-040", telefone:"(21) 9 7700-****", email:"—",                            cnae_principal:"7490-1/04 — Atividades de intermediação",cnae_secundario:"—",                                          capital_social:"5000",     integralizado:"5000",     pct_capital:"100%", alvo_central:"FERNANDO AUGUSTO LACERDA", cpf_alvo:"***.709.518-**", orgao_publico:"Prefeitura do Rio de Janeiro",             obs:"Microempresa com fat. R$ 4,2M. Sem funcionários, sem estrutura. Endereço fiscal: apartamento 45m². CNPJ irregular.", fontes:{ ps:false, pa:true, si:false, re:true, cx:false, ju:false, cl:false, on:false, os:false, sm:false, rc:false, cb:false }, pessoas:[{ nome:"VANESSA TEIXEIRA BRUM", cpf:"***.112.390-**", papel:"Sócia Única", entrada:"2020", saida:"atual" }] },
+    { n:5,  classificacao:"Empresa de Fachada",razao:"PÁTRIA OBRAS E REFORMAS LTDA",         cnpj:"71.808.432/0001-08", nome_fantasia:"PÁTRIA OBRAS",       data_abertura:"05/07/2021", natureza:"LTDA",    situacao:"Ativa",      vinculo:"Empresa de Fachada",       logradouro:"Lote Baldio s/n",        numero:"s/n",  complemento:"—",         bairro:"Campo Grande",  municipio:"Rio de Janeiro", uf:"RJ", cep:"23015-000", telefone:"(21) 9 7300-****", email:"—",                            cnae_principal:"4120-4/00 — Construção de edifícios",   cnae_secundario:"4330-4/99 — Obras de acabamento",           capital_social:"10000",    integralizado:"10000",    pct_capital:"100%", alvo_central:"FERNANDO AUGUSTO LACERDA", cpf_alvo:"***.709.518-**", orgao_publico:"SEOBRAS/RJ — R$ 6,7M em contratos",       obs:"Sem equipamentos, sem trabalhadores, sem alvará. Endereço: terreno baldio. Recebeu R$ 6,7M em dispensa de licitação.", fontes:{ ps:false, pa:true, si:false, re:true, cx:false, ju:false, cl:false, on:false, os:false, sm:false, rc:false, cb:false }, pessoas:[{ nome:"LEANDRO MORAES DIAS", cpf:"***.743.026-**", papel:"Diretor-Presidente", entrada:"2021", saida:"atual" },{ nome:"ISABELA QUEIROZ SANTOS", cpf:"***.831.604-**", papel:"Diretora Administrativa", entrada:"2021", saida:"atual" }] },
+    { n:6,  classificacao:"Empresa Relacionada",razao:"SAMPAIO ENGENHARIA LTDA",             cnpj:"44.901.228/0001-77", nome_fantasia:"SAMPAIO ENG",        data_abertura:"15/03/2015", natureza:"LTDA",    situacao:"Ativa",      vinculo:"Empresa Relacionada",      logradouro:"Rua Barão de Mesquita",  numero:"777",  complemento:"Sala 02",   bairro:"Andaraí",      municipio:"Rio de Janeiro", uf:"RJ", cep:"20541-001", telefone:"(21) 99600-****", email:"r.sampaio@sampaioeng.com.br",  cnae_principal:"7112-0/00 — Serviços de engenharia",    cnae_secundario:"7119-7/99 — Atividades técnicas",           capital_social:"500000",   integralizado:"500000",   pct_capital:"100%", alvo_central:"FERNANDO AUGUSTO LACERDA", cpf_alvo:"***.709.518-**", orgao_publico:"SEOBRAS/RJ — R$ 3,1M em notas fiscais",   obs:"Emite laudos e ARTs para obras fictícias. R$ 3,1M em NFs sem execução comprovada.", fontes:{ ps:false, pa:true, si:false, re:true, cx:false, ju:true, cl:false, on:false, os:false, sm:false, rc:false, cb:false }, pessoas:[{ nome:"ROBERTO SAMPAIO CRUZ", cpf:"***.204.711-**", papel:"Sócio-Administrador", entrada:"2015", saida:"atual" },{ nome:"CARLOS MOURA FILHO", cpf:"***.456.200-**", papel:"Sócio (30%)", entrada:"2018", saida:"atual" }] },
+    { n:7,  classificacao:"Empresa Relacionada",razao:"FONSECA & LIMA ASSESSORIA LTDA",      cnpj:"19.774.561/0001-90", nome_fantasia:"FL ASSESSORIA",      data_abertura:"22/09/2014", natureza:"LTDA",    situacao:"Ativa",      vinculo:"Empresa Relacionada",      logradouro:"Av. Atlântica",          numero:"3800", complemento:"Ap. 504",   bairro:"Copacabana",   municipio:"Rio de Janeiro", uf:"RJ", cep:"22070-002", telefone:"(21) 99900-****", email:"marcela.fl@flassessoria.com.br",cnae_principal:"7111-1/00 — Serviços de arquitetura", cnae_secundario:"7410-2/02 — Design de interiores",          capital_social:"200000",   integralizado:"200000",   pct_capital:"100%", alvo_central:"FERNANDO AUGUSTO LACERDA", cpf_alvo:"***.709.518-**", orgao_publico:"SEOBRAS/RJ — R$ 2,3M em contratos",       obs:"Pareceres técnicos emitidos sem visita às obras. Recebeu R$ 2,3M via contratos estaduais.", fontes:{ ps:false, pa:true, si:false, re:true, cx:false, ju:false, cl:false, on:false, os:false, sm:false, rc:false, cb:false }, pessoas:[{ nome:"MARCELA FONSECA LIMA", cpf:"***.618.332-**", papel:"Sócia-Administradora", entrada:"2014", saida:"atual" }] },
+    { n:8,  classificacao:"Empresa de Fachada",razao:"GENTIL GESTÃO PÚBLICA ME",             cnpj:"03.812.447/0001-62", nome_fantasia:"GGP",                data_abertura:"10/01/2017", natureza:"ME",      situacao:"Baixada",    vinculo:"Empresa de Fachada",       logradouro:"Rua Bambina",            numero:"120",  complemento:"Fundos",    bairro:"Botafogo",     municipio:"Rio de Janeiro", uf:"RJ", cep:"22251-050", telefone:"(21) 99200-****", email:"—",                            cnae_principal:"8411-6/00 — Administração pública em geral",cnae_secundario:"—",                                         capital_social:"3000",     integralizado:"3000",     pct_capital:"100%", alvo_central:"SILVIO GENTIL CORRÊA",     cpf_alvo:"***.399.177-**", orgao_publico:"SEOBRAS/RJ — Servidor é sócio (vedação legal)", obs:"Empresa baixada em 2025. Servidor público como sócio — vedação legal. CNPJ encerrado após intimação do MP.", fontes:{ ps:false, pa:true, si:false, re:true, cx:false, ju:false, cl:false, on:false, os:false, sm:false, rc:false, cb:false }, pessoas:[{ nome:"SILVIO GENTIL CORRÊA", cpf:"***.399.177-**", papel:"Sócio-Administrador", entrada:"2017", saida:"2025" }] },
+    { n:9,  classificacao:"Empresa Relacionada",razao:"BRAGA ADMINISTRADORA LTDA",           cnpj:"62.003.819/0001-44", nome_fantasia:"BRAGA ADM",          data_abertura:"14/02/2016", natureza:"LTDA",    situacao:"Ativa",      vinculo:"Empresa Relacionada",      logradouro:"Rua Sá Ferreira",        numero:"66",   complemento:"Sala 01",   bairro:"Copacabana",   municipio:"Rio de Janeiro", uf:"RJ", cep:"22061-001", telefone:"(21) 99340-****", email:"h.braga@bragaadm.com.br",      cnae_principal:"6821-8/01 — Corretagem na compra/venda", cnae_secundario:"6822-6/00 — Gestão de imóveis",             capital_social:"300000",   integralizado:"300000",   pct_capital:"100%", alvo_central:"FERNANDO AUGUSTO LACERDA", cpf_alvo:"***.709.518-**", orgao_publico:"Prefeitura do RJ — 7 contratos de locação",obs:"Gestora do portfólio imobiliário do grupo. Administra formalmente 12 imóveis investigados.", fontes:{ ps:false, pa:true, si:false, re:true, cx:false, ju:false, cl:false, on:false, os:false, sm:false, rc:false, cb:false }, pessoas:[{ nome:"HENRIQUE BRAGA MATTOS", cpf:"***.270.519-**", papel:"Sócio-Gerente", entrada:"2016", saida:"atual" },{ nome:"CARLOS MOURA FILHO", cpf:"***.456.200-**", papel:"Sócio (40%)", entrada:"2016", saida:"atual" }] },
+    { n:10, classificacao:"Empresa Relacionada",razao:"QUEIROZ LOCAÇÕES LTDA",               cnpj:"77.241.903/0001-29", nome_fantasia:"QUEIROZ LOC",        data_abertura:"03/05/2022", natureza:"LTDA",    situacao:"Ativa",      vinculo:"Empresa Relacionada",      logradouro:"Rua Jorge Rudge",        numero:"55",   complemento:"Ap. 101",   bairro:"São Gonçalo",  municipio:"São Gonçalo",    uf:"RJ", cep:"24710-005", telefone:"(21) 97300-****", email:"isabela.q@gmail.com",          cnae_principal:"6810-2/02 — Aluguel de imóveis próprios", cnae_secundario:"—",                                         capital_social:"50000",    integralizado:"50000",    pct_capital:"100%", alvo_central:"FERNANDO AUGUSTO LACERDA", cpf_alvo:"***.709.518-**", orgao_publico:"Prefeitura do Rio — Locações acima do mercado",obs:"Locadora de imóveis ao poder público acima do valor de mercado. Imóveis locados pertencem a investigados.", fontes:{ ps:false, pa:true, si:false, re:true, cx:false, ju:false, cl:false, on:false, os:false, sm:false, rc:false, cb:false }, pessoas:[{ nome:"ISABELA QUEIROZ SANTOS", cpf:"***.831.604-**", papel:"Sócia-Administradora", entrada:"2022", saida:"atual" },{ nome:"LEANDRO MORAES DIAS", cpf:"***.743.026-**", papel:"Sócio (50%)", entrada:"2022", saida:"atual" }] },
+    { n:11, classificacao:"Intermediária",      razao:"RESENDE FACTORING S/A",               cnpj:"41.500.726/0001-13", nome_fantasia:"RESENDE CAPITAL",    data_abertura:"30/08/2011", natureza:"S/A",     situacao:"Pendente",   vinculo:"Intermediário Financeiro", logradouro:"Av. das Américas",       numero:"3434", complemento:"Sala 202",  bairro:"Barra da Tijuca",municipio:"Rio de Janeiro", uf:"RJ", cep:"22640-102", telefone:"(21) 99700-****", email:"tulio.faro@resendecapital.com",cnae_principal:"6491-3/00 — Sociedades de fomento mercantil",cnae_secundario:"6499-9/05 — Concessão de crédito",        capital_social:"2000000",  integralizado:"2000000",  pct_capital:"100%", alvo_central:"FERNANDO AUGUSTO LACERDA", cpf_alvo:"***.709.518-**", orgao_publico:"BACEN — PA 2023",                          obs:"Factoring suspeita de legitimar recursos desviados. BACEN identificou movimentações suspeitas em 2023. PA em andamento.", fontes:{ ps:false, pa:true, si:false, re:true, cx:true, ju:true, cl:false, on:false, os:false, sm:false, rc:true, cb:false }, pessoas:[{ nome:"TÚLIO RESENDE FARO", cpf:"***.148.263-**", papel:"Controlador", entrada:"2011", saida:"atual" },{ nome:"ADRIANA COSTA PRADO", cpf:"***.055.840-**", papel:"Assessora Jurídica", entrada:"2019", saida:"atual" }] },
+    { n:12, classificacao:"Empresa Extinta",    razao:"CAVALCANTE & MELO LTDA",              cnpj:"29.614.003/0001-88", nome_fantasia:"C&M",                data_abertura:"11/04/2007", natureza:"LTDA",    situacao:"Baixada",    vinculo:"Empresa Extinta",          logradouro:"Av. Presidente Vargas",  numero:"900",  complemento:"Sala 1001", bairro:"Centro",       municipio:"Rio de Janeiro", uf:"RJ", cep:"20071-003", telefone:"—",             email:"—",                            cnae_principal:"4120-4/00 — Construção de edifícios",   cnae_secundario:"6810-2/01 — Compra e venda de imóveis",     capital_social:"500000",   integralizado:"500000",   pct_capital:"100%", alvo_central:"FERNANDO AUGUSTO LACERDA", cpf_alvo:"***.709.518-**", orgao_publico:"—",                                obs:"Baixada em 2025 após colaboração premiada de Cavalcante Melo. Responsável por parcela dos contratos irregulares.", fontes:{ ps:false, pa:true, si:false, re:true, cx:false, ju:true, cl:false, on:false, os:false, sm:false, rc:false, cb:false }, pessoas:[{ nome:"JORGE CAVALCANTE MELO", cpf:"***.912.077-**", papel:"Sócio-Fundador", entrada:"2007", saida:"2025" },{ nome:"FERNANDO AUGUSTO LACERDA", cpf:"***.709.518-**", papel:"Sócio Oculto (indicado)", entrada:"2007", saida:"2025" }] },
+    { n:13, classificacao:"Empresa Relacionada",razao:"MANGUINHOS INCORPORAÇÕES LTDA",       cnpj:"15.807.342/0001-50", nome_fantasia:"MANGUINHOS INC",     data_abertura:"22/01/2018", natureza:"LTDA",    situacao:"Ativa",      vinculo:"Empresa Relacionada",      logradouro:"Av. Brasil",             numero:"44000",complemento:"Bloco B",   bairro:"Santa Cruz",   municipio:"Rio de Janeiro", uf:"RJ", cep:"23455-000", telefone:"(21) 3300-****", email:"contato@manguinhosinc.com.br", cnae_principal:"4120-4/00 — Construção de edifícios",   cnae_secundario:"4110-7/00 — Incorporação de empreendimentos", capital_social:"1000000",  integralizado:"1000000",  pct_capital:"100%", alvo_central:"FERNANDO AUGUSTO LACERDA", cpf_alvo:"***.709.518-**", orgao_publico:"Prog. Estadual de Habitação — R$ 18M",     obs:"Receptora de contratos de habitação popular. Recebeu R$ 18M do programa estadual sem entrega de unidades.", fontes:{ ps:false, pa:true, si:false, re:true, cx:false, ju:true, cl:false, on:false, os:false, sm:false, rc:true, cb:false }, pessoas:[{ nome:"FERNANDO AUGUSTO LACERDA", cpf:"***.709.518-**", papel:"Controlador Oculto", entrada:"2018", saida:"atual" },{ nome:"AUGUSTO PINHEIRO NETO", cpf:"***.887.633-**", papel:"Sócio Formal (laranja)", entrada:"2018", saida:"atual" },{ nome:"CARLOS MOURA FILHO", cpf:"***.456.200-**", papel:"Diretor Financeiro", entrada:"2019", saida:"atual" }] },
+    { n:14, classificacao:"SPE",                razao:"DELTA CONSTRUÇÕES SPE LTDA",          cnpj:"96.320.118/0001-07", nome_fantasia:"DELTA SPE",          data_abertura:"18/05/2023", natureza:"LTDA",    situacao:"Ativa",      vinculo:"Empresa Relacionada",      logradouro:"Rua Barão de Mesquita",  numero:"777",  complemento:"Sala 03",   bairro:"Andaraí",      municipio:"Rio de Janeiro", uf:"RJ", cep:"20541-001", telefone:"(21) 99600-****", email:"delta@sampaioeng.com.br",      cnae_principal:"4120-4/00 — Construção de edifícios",   cnae_secundario:"—",                                         capital_social:"100000",   integralizado:"100000",   pct_capital:"100%", alvo_central:"FERNANDO AUGUSTO LACERDA", cpf_alvo:"***.709.518-**", orgao_publico:"Município do RJ — Contrato R$ 12M",        obs:"SPE criada para único contrato R$ 12M com Município do RJ. Obra entregue 60% executada. Sem patrimônio para responder.", fontes:{ ps:false, pa:true, si:false, re:true, cx:false, ju:true, cl:false, on:false, os:false, sm:false, rc:false, cb:false }, pessoas:[{ nome:"ROBERTO SAMPAIO CRUZ", cpf:"***.204.711-**", papel:"Diretor Técnico", entrada:"2023", saida:"atual" },{ nome:"HENRIQUE BRAGA MATTOS", cpf:"***.270.519-**", papel:"Sócio-Administrador", entrada:"2023", saida:"atual" }] },
+    { n:15, classificacao:"Empresa Relacionada",razao:"SOLAR EMPREENDIMENTOS LTDA",          cnpj:"84.117.630/0001-21", nome_fantasia:"SOLAR EMP",          data_abertura:"07/09/2022", natureza:"LTDA",    situacao:"Irregular",  vinculo:"Empresa Relacionada",      logradouro:"Rua Frei Caneca",        numero:"300",  complemento:"Ap. 501",   bairro:"Tijuca",       municipio:"Rio de Janeiro", uf:"RJ", cep:"20550-010", telefone:"—",             email:"—",                            cnae_principal:"4120-4/00 — Construção de edifícios",   cnae_secundario:"4110-7/00 — Incorporação",                  capital_social:"50000",    integralizado:"50000",    pct_capital:"100%", alvo_central:"TÚLIO RESENDE FARO",       cpf_alvo:"***.148.263-**", orgao_publico:"Subcontratada pela empresa principal",     obs:"Irregularidade fiscal grave. R$ 5,1M via subcontratação. Suspeita de evasão fiscal. Sede não localizada.", fontes:{ ps:false, pa:false, si:false, re:true, cx:false, ju:false, cl:false, on:false, os:false, sm:false, rc:false, cb:false }, pessoas:[{ nome:"TÚLIO RESENDE FARO", cpf:"***.148.263-**", papel:"Sócio (via laranja)", entrada:"2022", saida:"atual" },{ nome:"VANESSA TEIXEIRA BRUM", cpf:"***.112.390-**", papel:"Sócia Formal", entrada:"2022", saida:"atual" }] },
+  ],
+  bensImoveis: [
+    { n:1,  tipo:"Residencial", descricao:"Cobertura duplex — Av. Vieira Souto, 880/1201 — Ipanema/RJ",        logradouro:"Av. Vieira Souto",     numero:"880",   complemento:"Ap. 1201 Cobertura", bairro:"Ipanema",        municipio:"Rio de Janeiro", uf:"RJ", cep:"22420-006", lat:"-22.9867", lng:"-43.2066", area:"480m²",    valor_estimado:"8200000",  pct_valor:"100%", fonte_valor:"Avaliação ONR 2025", nr_matricula:"RJ-110001", proprietario:"Fernando A. Lacerda",     cpf_cnpj:"***.709.518-**", data_aquisicao:"2022", valor_compra:"7800000",  gravame:"Alienação Fiduciária — Caixa Econômica", situacao:"ATIVA",   resumo:"Principal residência do investigado. Valor incompatível com renda declarada de R$ 240k/ano.", fontes:{ on:true,  ps:true  } },
+    { n:2,  tipo:"Residencial", descricao:"Mansão — Estrada do Joá, 5500 — Barra da Tijuca/RJ",                logradouro:"Estrada do Joá",       numero:"5500",  complemento:"Casa principal",     bairro:"Barra da Tijuca",municipio:"Rio de Janeiro", uf:"RJ", cep:"22611-070", lat:"-23.0112", lng:"-43.3394", area:"1.200m²",  valor_estimado:"6500000",  pct_valor:"100%", fonte_valor:"Avaliação ONR 2025", nr_matricula:"RJ-110002", proprietario:"Beatriz Lacerda Moura",   cpf_cnpj:"***.321.147-**", data_aquisicao:"2021", valor_compra:"5900000",  gravame:"Sem gravames",                           situacao:"ATIVA",   resumo:"Segunda residência da família. Área construída 1.200m², piscina e quadra. Aquisição em período de pico dos contratos.", fontes:{ on:true,  ps:false } },
+    { n:3,  tipo:"Comercial",   descricao:"Andar corporativo — Av. Rio Branco, 1500/12º andar — Centro/RJ",   logradouro:"Av. Rio Branco",       numero:"1500",  complemento:"12º andar",          bairro:"Centro",         municipio:"Rio de Janeiro", uf:"RJ", cep:"20040-901", lat:"-22.9035", lng:"-43.1816", area:"620m²",    valor_estimado:"4100000",  pct_valor:"100%", fonte_valor:"Avaliação ONR 2025", nr_matricula:"RJ-110003", proprietario:"Atlântico Participações S/A",cpf_cnpj:"12.789.456/0001-33", data_aquisicao:"2020", valor_compra:"3500000", gravame:"Sem gravames",                            situacao:"ATIVA",   resumo:"Sede corporativa do grupo. Locado parcialmente ao poder público via BRAGA ADMINISTRADORA.", fontes:{ on:true,  ps:false } },
+    { n:4,  tipo:"Residencial", descricao:"Apartamento — Av. Atlântica, 3800/504 — Copacabana/RJ",             logradouro:"Av. Atlântica",        numero:"3800",  complemento:"Ap. 504",            bairro:"Copacabana",     municipio:"Rio de Janeiro", uf:"RJ", cep:"22070-002", lat:"-22.9850", lng:"-43.1867", area:"210m²",    valor_estimado:"2100000",  pct_valor:"100%", fonte_valor:"Avaliação ONR 2025", nr_matricula:"RJ-110004", proprietario:"Marcela Fonseca Lima",    cpf_cnpj:"***.618.332-**", data_aquisicao:"2023", valor_compra:"1950000",  gravame:"Sem gravames",                           situacao:"ATIVA",   resumo:"Apartamento da arquiteta. Frente-mar. Aquisição em 2023 — período de emissão de laudos fictícios.", fontes:{ on:true,  ps:false } },
+    { n:5,  tipo:"Residencial", descricao:"Casa — Rua Bambina, 120 — Botafogo/RJ",                             logradouro:"Rua Bambina",          numero:"120",   complemento:"Casa",               bairro:"Botafogo",       municipio:"Rio de Janeiro", uf:"RJ", cep:"22251-050", lat:"-22.9461", lng:"-43.1875", area:"340m²",    valor_estimado:"1950000",  pct_valor:"100%", fonte_valor:"Avaliação ONR 2025", nr_matricula:"RJ-110005", proprietario:"Silvio Gentil Corrêa",    cpf_cnpj:"***.399.177-**", data_aquisicao:"2019", valor_compra:"1600000",  gravame:"Sem gravames",                           situacao:"ATIVA",   resumo:"Residência principal do servidor público. Incompatível com remuneração declarada de R$ 18k/mês.", fontes:{ on:true,  ps:false } },
+    { n:6,  tipo:"Residencial", descricao:"Casa — Rua das Magnólias, 45 — Deodoro/RJ",                         logradouro:"Rua das Magnólias",    numero:"45",    complemento:"Casa",               bairro:"Deodoro",        municipio:"Rio de Janeiro", uf:"RJ", cep:"21735-040", lat:"-22.8523", lng:"-43.3598", area:"180m²",    valor_estimado:"980000",   pct_valor:"100%", fonte_valor:"Avaliação ONR 2025", nr_matricula:"RJ-110006", proprietario:"Vanessa Teixeira Brum",   cpf_cnpj:"***.112.390-**", data_aquisicao:"2022", valor_compra:"920000",   gravame:"Sem gravames",                           situacao:"ATIVA",   resumo:"Imóvel da diarista-laranja. Renda declarada R$ 1.600/mês — valor incompatível.", fontes:{ on:true,  ps:false } },
+    { n:7,  tipo:"Rural",       descricao:"Sítio — Estrada da Independência, km 12 — Petrópolis/RJ",           logradouro:"Estrada da Independência",numero:"km 12",complemento:"Sítio",             bairro:"Corrêas",        municipio:"Petrópolis",     uf:"RJ", cep:"25715-270", lat:"-22.5069", lng:"-43.1729", area:"45.000m²", valor_estimado:"3200000",  pct_valor:"100%", fonte_valor:"Avaliação Cartório 2025", nr_matricula:"RJ-110007", proprietario:"Silvio Gentil Corrêa",   cpf_cnpj:"***.399.177-**", data_aquisicao:"2020", valor_compra:"2700000",  gravame:"Sem gravames",                           situacao:"ATIVA",   resumo:"Sítio do servidor público em Petrópolis. Segundo imóvel rural — patrimônio total supera R$ 5M.", fontes:{ on:true,  ps:true  } },
+    { n:8,  tipo:"Comercial",   descricao:"Galpão industrial — Av. Brasil, 44.000 — Santa Cruz/RJ",             logradouro:"Av. Brasil",           numero:"44000", complemento:"Galpão",             bairro:"Santa Cruz",     municipio:"Rio de Janeiro", uf:"RJ", cep:"23455-000", lat:"-22.9186", lng:"-43.6941", area:"3.800m²",  valor_estimado:"2800000",  pct_valor:"100%", fonte_valor:"Avaliação ONR 2025", nr_matricula:"RJ-110008", proprietario:"Lacerda Incorporações S/A",cpf_cnpj:"33.412.081/0001-96",data_aquisicao:"2018", valor_compra:"2200000", gravame:"Sem gravames",                            situacao:"ATIVA",   resumo:"Galpão industrial da empresa principal. Locado ao poder público por R$ 48k/mês.", fontes:{ on:false, ps:true  } },
+    { n:9,  tipo:"Residencial", descricao:"Apartamento — Rua Cosme Velho, 900/301 — Cosme Velho/RJ",           logradouro:"Rua Cosme Velho",      numero:"900",   complemento:"Ap. 301",            bairro:"Cosme Velho",    municipio:"Rio de Janeiro", uf:"RJ", cep:"22241-090", lat:"-22.9460", lng:"-43.1910", area:"150m²",    valor_estimado:"1650000",  pct_valor:"100%", fonte_valor:"Avaliação ONR 2025", nr_matricula:"RJ-110009", proprietario:"Patrícia Nunes Vale",     cpf_cnpj:"***.530.884-**", data_aquisicao:"2021", valor_compra:"1500000",  gravame:"Sem gravames",                           situacao:"ATIVA",   resumo:"Apartamento da sócia oculta-nutricionista. Aquisição compatível com R$ 1,8M recebidos da empresa de fachada.", fontes:{ on:true,  ps:false } },
+    { n:10, tipo:"Comercial",   descricao:"Sala comercial — Av. das Américas, 3434/202 — Barra da Tijuca/RJ",  logradouro:"Av. das Américas",     numero:"3434",  complemento:"Sala 202",           bairro:"Barra da Tijuca",municipio:"Rio de Janeiro", uf:"RJ", cep:"22640-102", lat:"-23.0019", lng:"-43.3316", area:"120m²",    valor_estimado:"1200000",  pct_valor:"100%", fonte_valor:"Avaliação ONR 2025", nr_matricula:"RJ-110010", proprietario:"Túlio Resende Faro",      cpf_cnpj:"***.148.263-**", data_aquisicao:"2022", valor_compra:"1050000",  gravame:"Sem gravames",                           situacao:"ATIVA",   resumo:"Sede da RESENDE FACTORING. Imóvel em nome do operador financeiro suspenso.", fontes:{ on:true,  ps:false } },
+    { n:11, tipo:"Residencial", descricao:"Casa — Rua Sá Ferreira, 66 — Copacabana/RJ",                        logradouro:"Rua Sá Ferreira",      numero:"66",    complemento:"Casa",               bairro:"Copacabana",     municipio:"Rio de Janeiro", uf:"RJ", cep:"22061-001", lat:"-22.9668", lng:"-43.1905", area:"220m²",    valor_estimado:"1800000",  pct_valor:"100%", fonte_valor:"Avaliação ONR 2025", nr_matricula:"RJ-110011", proprietario:"Henrique Braga Mattos",   cpf_cnpj:"***.270.519-**", data_aquisicao:"2023", valor_compra:"1650000",  gravame:"Sem gravames",                           situacao:"ATIVA",   resumo:"Casa do administrador do portfólio imobiliário. Aquisição após firma de contratos de locação pública.", fontes:{ on:true,  ps:false } },
+    { n:12, tipo:"Residencial", descricao:"Casa — Rua Voluntários da Pátria, 88 — Botafogo/RJ",                logradouro:"Rua Voluntários da Pátria",numero:"88", complemento:"Casa",               bairro:"Botafogo",       municipio:"Rio de Janeiro", uf:"RJ", cep:"22270-010", lat:"-22.9456", lng:"-43.1799", area:"190m²",    valor_estimado:"1400000",  pct_valor:"100%", fonte_valor:"Avaliação ONR 2025", nr_matricula:"RJ-110012", proprietario:"Carlos Moura Filho",      cpf_cnpj:"***.456.200-**", data_aquisicao:"2020", valor_compra:"1200000",  gravame:"Sem gravames",                           situacao:"ATIVA",   resumo:"Residência do contador do grupo. Compatível com renda declarada mas aquisição coincide com período de irregularidades.", fontes:{ on:true,  ps:false } },
+    { n:13, tipo:"Comercial",   descricao:"Prédio comercial — Rua do Riachuelo, 120 — Centro/RJ",              logradouro:"Rua do Riachuelo",     numero:"120",   complemento:"Prédio completo",    bairro:"Centro",         municipio:"Rio de Janeiro", uf:"RJ", cep:"20230-010", lat:"-22.9118", lng:"-43.1753", area:"800m²",    valor_estimado:"3600000",  pct_valor:"100%", fonte_valor:"Avaliação ONR 2025", nr_matricula:"RJ-110013", proprietario:"Atlântico Participações S/A",cpf_cnpj:"12.789.456/0001-33", data_aquisicao:"2017", valor_compra:"2800000", gravame:"Sem gravames",                            situacao:"ATIVA",   resumo:"Prédio sede da holding. Locado parcialmente ao Estado do RJ por R$ 92k/mês — acima do valor de mercado.", fontes:{ on:false, ps:true  } },
+    { n:14, tipo:"Residencial", descricao:"Cobertura — Rua Barão de Mesquita, 777/cobertura — Andaraí/RJ",     logradouro:"Rua Barão de Mesquita",numero:"777",   complemento:"Cobertura",          bairro:"Andaraí",        municipio:"Rio de Janeiro", uf:"RJ", cep:"20541-001", lat:"-22.9230", lng:"-43.2412", area:"280m²",    valor_estimado:"2400000",  pct_valor:"100%", fonte_valor:"Avaliação ONR 2025", nr_matricula:"RJ-110014", proprietario:"Roberto Sampaio Cruz",    cpf_cnpj:"***.204.711-**", data_aquisicao:"2022", valor_compra:"2100000",  gravame:"Sem gravames",                           situacao:"ATIVA",   resumo:"Cobertura duplex do engenheiro. Incompatível com pro-labore declarado. Aquisição após ARTs superfaturadas.", fontes:{ on:true,  ps:false } },
+    { n:15, tipo:"Rural",       descricao:"Fazenda — Estrada Municipal s/n — Vassouras/RJ",                    logradouro:"Estrada Municipal",    numero:"s/n",   complemento:"Sede da fazenda",    bairro:"Zona Rural",     municipio:"Vassouras",      uf:"RJ", cep:"27700-000", lat:"-22.4008", lng:"-43.6638", area:"320.000m²",valor_estimado:"4700000",  pct_valor:"100%", fonte_valor:"Avaliação Cartório 2025", nr_matricula:"RJ-110015", proprietario:"Augusto Pinheiro Neto",  cpf_cnpj:"***.887.633-**", data_aquisicao:"2021", valor_compra:"4100000",  gravame:"Sem gravames",                           situacao:"ATIVA",   resumo:"Fazenda do aposentado-laranja (renda R$ 2k/mês). Patrimônio rural incompatível. Criação de gado + casa-sede.", fontes:{ on:true,  ps:true  } },
+  ],
+  veiculos: [
+    { n:1,  descricao:"Mercedes-Benz GLE 450 4MATIC — 2024",      placa:"RJA-1E99", renavam:"11223344001", valor:"R$ 580.000",   titular:"Fernando A. Lacerda",   aquisicao:"2024", cor:"Preto",  ano:"2024", chassi:"9BM960102R1001001", municipio:"Rio de Janeiro", uf:"RJ", roubo:false, blindado:true,  situacao:"ATIVA",   cpf_cnpj:"***.709.518-**" },
+    { n:2,  descricao:"Porsche Cayenne Turbo S — 2023",            placa:"RJB-2F88", renavam:"11223344002", valor:"R$ 720.000",   titular:"Beatriz Lacerda Moura", aquisicao:"2023", cor:"Branco", ano:"2023", chassi:"WP1ZZZ9YPRD001002", municipio:"Rio de Janeiro", uf:"RJ", roubo:false, blindado:false, situacao:"ATIVA",   cpf_cnpj:"***.321.147-**" },
+    { n:3,  descricao:"BMW X7 M60i — 2023",                       placa:"RJC-3G77", renavam:"11223344003", valor:"R$ 680.000",   titular:"Silvio Gentil Corrêa",  aquisicao:"2022", cor:"Cinza",  ano:"2023", chassi:"WBAGV210XP0001003", municipio:"Niterói",       uf:"RJ", roubo:false, blindado:true,  situacao:"ATIVA",   cpf_cnpj:"***.399.177-**" },
+    { n:4,  descricao:"Lamborghini Urus — 2022",                   placa:"RJD-4H66", renavam:"11223344004", valor:"R$ 1.900.000", titular:"Atlântico Participações S/A", aquisicao:"2022", cor:"Amarelo", ano:"2022", chassi:"ZPBUA1ZL0NLA01004", municipio:"Rio de Janeiro", uf:"RJ", roubo:false, blindado:false, situacao:"ATIVA", cpf_cnpj:"12.789.456/0001-33" },
+    { n:5,  descricao:"Land Rover Defender 110 V8 — 2024",         placa:"RJE-5I55", renavam:"11223344005", valor:"R$ 620.000",   titular:"Marcela Fonseca Lima",  aquisicao:"2023", cor:"Verde",  ano:"2024", chassi:"SALGA2AE5P1001005", municipio:"Rio de Janeiro", uf:"RJ", roubo:false, blindado:false, situacao:"ATIVA",   cpf_cnpj:"***.618.332-**" },
+    { n:6,  descricao:"Ferrari Roma — 2021",                       placa:"RJF-6J44", renavam:"11223344006", valor:"R$ 2.100.000", titular:"Fernando A. Lacerda",   aquisicao:"2021", cor:"Vermelho", ano:"2021", chassi:"ZFF96NLAXML001006", municipio:"Rio de Janeiro", uf:"RJ", roubo:false, blindado:false, situacao:"ATIVA", cpf_cnpj:"***.709.518-**" },
+    { n:7,  descricao:"Toyota Hilux SW4 Diamond — 2023",           placa:"RJG-7K33", renavam:"11223344007", valor:"R$ 290.000",   titular:"Roberto Sampaio Cruz",  aquisicao:"2023", cor:"Prata",  ano:"2023", chassi:"8AJFD29G3P0001007", municipio:"Niterói",       uf:"RJ", roubo:false, blindado:false, situacao:"ATIVA",   cpf_cnpj:"***.204.711-**" },
+    { n:8,  descricao:"Jeep Grand Cherokee Trackhawk — 2022",      placa:"RJH-8L22", renavam:"11223344008", valor:"R$ 520.000",   titular:"Henrique Braga Mattos", aquisicao:"2022", cor:"Azul",   ano:"2022", chassi:"1C4RJFLG2NC001008", municipio:"Rio de Janeiro", uf:"RJ", roubo:false, blindado:false, situacao:"ATIVA",   cpf_cnpj:"***.270.519-**" },
+    { n:9,  descricao:"Bentley Bentayga V8 — 2023",                placa:"RJI-9M11", renavam:"11223344009", valor:"R$ 1.650.000", titular:"Augusto Pinheiro Neto", aquisicao:"2023", cor:"Vinho",  ano:"2023", chassi:"SCBBA2ZA5PC001009", municipio:"Petrópolis",    uf:"RJ", roubo:false, blindado:false, situacao:"ATIVA",   cpf_cnpj:"***.887.633-**" },
+    { n:10, descricao:"Volvo XC90 T8 Recharge — 2024",             placa:"RJJ-0N00", renavam:"11223344010", valor:"R$ 410.000",   titular:"Adriana Costa Prado",   aquisicao:"2024", cor:"Prata",  ano:"2024", chassi:"YV4H60CE8P1001010", municipio:"Rio de Janeiro", uf:"RJ", roubo:false, blindado:false, situacao:"ATIVA",   cpf_cnpj:"***.055.840-**" },
+    { n:11, descricao:"Audi Q8 e-tron — 2024",                     placa:"RJK-1O99", renavam:"11223344011", valor:"R$ 560.000",   titular:"Patrícia Nunes Vale",   aquisicao:"2023", cor:"Azul",   ano:"2024", chassi:"WA1VVBF13RD001011", municipio:"Rio de Janeiro", uf:"RJ", roubo:false, blindado:false, situacao:"ATIVA",   cpf_cnpj:"***.530.884-**" },
+    { n:12, descricao:"Rolls-Royce Ghost — 2022",                   placa:"RJL-2P88", renavam:"11223344012", valor:"R$ 3.200.000", titular:"Lacerda Incorporações S/A", aquisicao:"2022", cor:"Preto", ano:"2022", chassi:"SCA664S5XNU001012", municipio:"Rio de Janeiro", uf:"RJ", roubo:false, blindado:true, situacao:"ATIVA", cpf_cnpj:"33.412.081/0001-96" },
+    { n:13, descricao:"Volkswagen Amarok V6 — 2024",                placa:"RJM-3Q77", renavam:"11223344013", valor:"R$ 220.000",   titular:"Carlos Moura Filho",    aquisicao:"2024", cor:"Branco", ano:"2024", chassi:"9BWZ6B3E7R0001013", municipio:"Rio de Janeiro", uf:"RJ", roubo:false, blindado:false, situacao:"ATIVA",   cpf_cnpj:"***.456.200-**" },
+    { n:14, descricao:"Honda CB 1000R Black Edition — 2023",        placa:"RJN-4R66", renavam:"11223344014", valor:"R$ 78.000",    titular:"Leandro Moraes Dias",   aquisicao:"2023", cor:"Preto",  ano:"2023", chassi:"JH2SC7705PM001014", municipio:"São Gonçalo",   uf:"RJ", roubo:false, blindado:false, situacao:"ATIVA",   cpf_cnpj:"***.743.026-**" },
+    { n:15, descricao:"Chevrolet Trailblazer RS — 2023",            placa:"RJO-5S55", renavam:"11223344015", valor:"R$ 230.000",   titular:"Isabela Queiroz Santos",aquisicao:"2023", cor:"Preto",  ano:"2023", chassi:"9BGEC75L0PG001015", municipio:"São Gonçalo",   uf:"RJ", roubo:false, blindado:false, situacao:"ATIVA",   cpf_cnpj:"***.831.604-**" },
+  ],
+  aeronaves: [
+    { n:1,  proprietario:"FERNANDO AUGUSTO LACERDA",   cpf_cnpj:"***.709.518-**", operador:"LACERDA INCORPORAÇÕES S/A",       cpf_cnpj_op:"33.412.081/0001-96", radar:true,  marca:"Cessna",      fabricante:"Textron Aviation",  modelo:"Citation CJ4",       nr_serie:"0425-0001", nr_inscricao:"PR-FLA", nr_matricula:"PR-FLA-001", ano_fabricacao:"2021", tipo_icao:"C55B", classe:"Avião",      categoria_registro:"Privado", tipo_operacao:"Transporte Particular", cd_cls:"APP", nr_pmd:"7.760",  passageiros_max:"9",  assentos:"9",  data_matricula:"15/03/2021", gravames:"Alienação Fiduciária — Banco Alfa S/A", validade_cva:"15/03/2026", validade_ca:"15/03/2026", valor_compra:"R$ 8.200.000", valor_estimado:"R$ 9.500.000", pct_valor:"100%", fonte_valor:"Avaliação ANAC 2025", resumo:"Jato executivo. Utilizado para viagens entre Rio, São Paulo e Miami. Frequência de voos verificada no SISANT." },
+    { n:2,  proprietario:"SILVIO GENTIL CORRÊA",       cpf_cnpj:"***.399.177-**", operador:"SILVIO GENTIL CORRÊA",            cpf_cnpj_op:"***.399.177-**",     radar:true,  marca:"Embraer",     fabricante:"Embraer S/A",       modelo:"Phenom 300E",        nr_serie:"50500-0148", nr_inscricao:"PR-SGC", nr_matricula:"PR-SGC-002", ano_fabricacao:"2022", tipo_icao:"E55P", classe:"Avião",      categoria_registro:"Privado", tipo_operacao:"Transporte Particular", cd_cls:"APP", nr_pmd:"8.150",  passageiros_max:"10", assentos:"10", data_matricula:"10/08/2022", gravames:"Sem gravames", validade_cva:"10/08/2026", validade_ca:"10/08/2026", valor_compra:"R$ 11.500.000", valor_estimado:"R$ 12.800.000", pct_valor:"100%", fonte_valor:"Avaliação ANAC 2025", resumo:"Adquirido com renda incompatível. Servidor público estadual. Irregularidade apontada no cruzamento SIAFI × ANAC." },
+    { n:3,  proprietario:"ATLÂNTICO PARTICIPAÇÕES S/A",cpf_cnpj:"12.789.456/0001-33", operador:"ATLÂNTICO PARTICIPAÇÕES S/A",  cpf_cnpj_op:"12.789.456/0001-33", radar:true,  marca:"Bell",        fabricante:"Bell Textron",      modelo:"Bell 429 GlobalRanger",nr_serie:"57243",     nr_inscricao:"PP-ATL", nr_matricula:"PP-ATL-003", ano_fabricacao:"2020", tipo_icao:"B429", classe:"Helicóptero", categoria_registro:"Empresarial", tipo_operacao:"Transporte Executivo",     cd_cls:"AEH", nr_pmd:"3.175",  passageiros_max:"7",  assentos:"7",  data_matricula:"20/11/2020", gravames:"Sem gravames", validade_cva:"20/11/2025", validade_ca:"20/11/2025", valor_compra:"R$ 6.400.000", valor_estimado:"R$ 7.100.000", pct_valor:"100%", fonte_valor:"Avaliação ANAC 2025", resumo:"Helicóptero executivo. Decolagens frequentes do heliporto do Grupo em Barra da Tijuca. Suspeito de uso pessoal do investigado." },
+    { n:4,  proprietario:"MARCELA FONSECA LIMA",       cpf_cnpj:"***.618.332-**", operador:"MARCELA FONSECA LIMA",            cpf_cnpj_op:"***.618.332-**",     radar:false, marca:"Cirrus",      fabricante:"Cirrus Aircraft",   modelo:"SR22T G6",           nr_serie:"4049",      nr_inscricao:"PR-MFL", nr_matricula:"PR-MFL-004", ano_fabricacao:"2023", tipo_icao:"SR22", classe:"Avião",      categoria_registro:"Privado", tipo_operacao:"Transporte Particular", cd_cls:"APP", nr_pmd:"1.633",  passageiros_max:"4",  assentos:"4",  data_matricula:"05/05/2023", gravames:"Sem gravames", validade_cva:"05/05/2026", validade_ca:"05/05/2026", valor_compra:"R$ 1.900.000", valor_estimado:"R$ 2.100.000", pct_valor:"100%", fonte_valor:"Tabela FIPE Aeronaves 2025", resumo:"Avião monomotor. Registrado em nome da arquiteta. Valor incompatível com rendimentos declarados." },
+    { n:5,  proprietario:"LACERDA INCORPORAÇÕES S/A",  cpf_cnpj:"33.412.081/0001-96", operador:"LACERDA INCORPORAÇÕES S/A",   cpf_cnpj_op:"33.412.081/0001-96", radar:true,  marca:"Agusta",      fabricante:"Leonardo S.p.A.",   modelo:"AW109 Trekker",      nr_serie:"22300",     nr_inscricao:"PP-LIS", nr_matricula:"PP-LIS-005", ano_fabricacao:"2019", tipo_icao:"A109", classe:"Helicóptero", categoria_registro:"Empresarial", tipo_operacao:"Transporte Executivo",     cd_cls:"AEH", nr_pmd:"2.850",  passageiros_max:"6",  assentos:"6",  data_matricula:"01/09/2019", gravames:"Sem gravames", validade_cva:"01/09/2025", validade_ca:"01/09/2025", valor_compra:"R$ 5.800.000", valor_estimado:"R$ 6.300.000", pct_valor:"100%", fonte_valor:"Avaliação ANAC 2025", resumo:"Helicóptero da empresa principal. Uso predominantemente pessoal pelo sócio controlador." },
+    { n:6,  proprietario:"TÚLIO RESENDE FARO",         cpf_cnpj:"***.148.263-**", operador:"RESENDE FACTORING S/A",           cpf_cnpj_op:"41.500.726/0001-13", radar:true,  marca:"Pilatus",     fabricante:"Pilatus Aircraft",  modelo:"PC-12 NGX",          nr_serie:"2084",      nr_inscricao:"PR-TRF", nr_matricula:"PR-TRF-006", ano_fabricacao:"2022", tipo_icao:"PC12", classe:"Avião",      categoria_registro:"Privado", tipo_operacao:"Transporte Particular", cd_cls:"APP", nr_pmd:"4.740",  passageiros_max:"9",  assentos:"9",  data_matricula:"22/06/2022", gravames:"Alienação Fiduciária", validade_cva:"22/06/2026", validade_ca:"22/06/2026", valor_compra:"R$ 7.200.000", valor_estimado:"R$ 8.100.000", pct_valor:"100%", fonte_valor:"Avaliação ANAC 2025", resumo:"Registrado em nome do operador financeiro suspenso pelo BACEN. Rotas frequentes para Uruguai e Paraguai." },
+    { n:7,  proprietario:"AUGUSTO PINHEIRO NETO",      cpf_cnpj:"***.887.633-**", operador:"MANGUINHOS INCORPORAÇÕES LTDA",   cpf_cnpj_op:"15.807.342/0001-50", radar:false, marca:"Diamond",     fabricante:"Diamond Aircraft",  modelo:"DA62",               nr_serie:"62.013",    nr_inscricao:"PR-APN", nr_matricula:"PR-APN-007", ano_fabricacao:"2021", tipo_icao:"DA62", classe:"Avião",      categoria_registro:"Privado", tipo_operacao:"Transporte Particular", cd_cls:"APP", nr_pmd:"2.300",  passageiros_max:"7",  assentos:"7",  data_matricula:"30/03/2021", gravames:"Sem gravames", validade_cva:"30/03/2026", validade_ca:"30/03/2026", valor_compra:"R$ 2.800.000", valor_estimado:"R$ 3.100.000", pct_valor:"100%", fonte_valor:"Tabela FIPE Aeronaves 2025", resumo:"Laranja (aposentado) como proprietário formal. Operado pela empresa relacionada. Padrão de uso suspeito." },
+    { n:8,  proprietario:"HENRIQUE BRAGA MATTOS",      cpf_cnpj:"***.270.519-**", operador:"BRAGA ADMINISTRADORA LTDA",       cpf_cnpj_op:"62.003.819/0001-44", radar:true,  marca:"Beechcraft",  fabricante:"Textron Aviation",  modelo:"King Air C90GTx",    nr_serie:"LJ-2098",   nr_inscricao:"PR-HBM", nr_matricula:"PR-HBM-008", ano_fabricacao:"2020", tipo_icao:"BE90", classe:"Avião",      categoria_registro:"Empresarial", tipo_operacao:"Fretamento",           cd_cls:"AFP", nr_pmd:"4.581",  passageiros_max:"8",  assentos:"8",  data_matricula:"14/12/2020", gravames:"Sem gravames", validade_cva:"14/12/2025", validade_ca:"14/12/2025", valor_compra:"R$ 5.100.000", valor_estimado:"R$ 5.600.000", pct_valor:"100%", fonte_valor:"Avaliação ANAC 2025", resumo:"Registrado na empresa administradora. Fretamentos para destinos turísticos sem justificativa empresarial." },
+    { n:9,  proprietario:"ROBERTO SAMPAIO CRUZ",       cpf_cnpj:"***.204.711-**", operador:"SAMPAIO ENGENHARIA LTDA",         cpf_cnpj_op:"44.901.228/0001-77", radar:true,  marca:"Eurocopter",  fabricante:"Airbus Helicopters",modelo:"EC130 T2",           nr_serie:"8534",      nr_inscricao:"PP-RSC", nr_matricula:"PP-RSC-009", ano_fabricacao:"2018", tipo_icao:"EC30", classe:"Helicóptero", categoria_registro:"Empresarial", tipo_operacao:"Serviço Aéreo Privado",    cd_cls:"AEH", nr_pmd:"2.480",  passageiros_max:"6",  assentos:"6",  data_matricula:"08/04/2018", gravames:"Sem gravames", validade_cva:"08/04/2026", validade_ca:"08/04/2026", valor_compra:"R$ 3.700.000", valor_estimado:"R$ 4.100.000", pct_valor:"100%", fonte_valor:"Avaliação ANAC 2025", resumo:"Helicóptero do engenheiro. Registrado na empresa prestadora de serviços. Pousos irregulares em áreas privadas." },
+    { n:10, proprietario:"LACERDA INCORPORAÇÕES S/A",  cpf_cnpj:"33.412.081/0001-96", operador:"LACERDA INCORPORAÇÕES S/A",   cpf_cnpj_op:"33.412.081/0001-96", radar:true,  marca:"Gulfstream",  fabricante:"Gulfstream Aerospace",modelo:"G280",             nr_serie:"2172",      nr_inscricao:"PR-LII", nr_matricula:"PR-LII-010", ano_fabricacao:"2023", tipo_icao:"GLF4", classe:"Avião",      categoria_registro:"Empresarial", tipo_operacao:"Transporte Executivo",     cd_cls:"AFP", nr_pmd:"16.194", passageiros_max:"10", assentos:"10", data_matricula:"20/01/2023", gravames:"Alienação Fiduciária — Banco BTG S/A", validade_cva:"20/01/2026", validade_ca:"20/01/2026", valor_compra:"R$ 24.000.000", valor_estimado:"R$ 26.500.000", pct_valor:"100%", fonte_valor:"Avaliação ANAC 2025", resumo:"Jato de longo alcance. Utilizado em viagens a Miami e Lisboa. Principal ativo aeronáutico do grupo." },
+    { n:11, proprietario:"CARLOS MOURA FILHO",         cpf_cnpj:"***.456.200-**", operador:"ATLÂNTICO PARTICIPAÇÕES S/A",     cpf_cnpj_op:"12.789.456/0001-33", radar:false, marca:"Piper",       fabricante:"Piper Aircraft",    modelo:"Matrix PA-46R",      nr_serie:"4692260",   nr_inscricao:"PR-CMF", nr_matricula:"PR-CMF-011", ano_fabricacao:"2019", tipo_icao:"PA46", classe:"Avião",      categoria_registro:"Privado", tipo_operacao:"Transporte Particular", cd_cls:"APP", nr_pmd:"1.905",  passageiros_max:"5",  assentos:"5",  data_matricula:"12/09/2019", gravames:"Sem gravames", validade_cva:"12/09/2025", validade_ca:"12/09/2025", valor_compra:"R$ 1.600.000", valor_estimado:"R$ 1.750.000", pct_valor:"100%", fonte_valor:"Tabela FIPE Aeronaves 2025", resumo:"Avião do contador do grupo. Utilizado em rotas para Foz do Iguaçu e Buenos Aires." },
+    { n:12, proprietario:"DELTA CONSTRUÇÕES SPE LTDA", cpf_cnpj:"96.320.118/0001-07", operador:"DELTA CONSTRUÇÕES SPE LTDA",  cpf_cnpj_op:"96.320.118/0001-07", radar:true,  marca:"Robinson",    fabricante:"Robinson Helicopter",modelo:"R66 Turbine",       nr_serie:"0989",      nr_inscricao:"PP-DCL", nr_matricula:"PP-DCL-012", ano_fabricacao:"2022", tipo_icao:"R66",  classe:"Helicóptero", categoria_registro:"Empresarial", tipo_operacao:"Serviço Aéreo Privado",    cd_cls:"AEH", nr_pmd:"1.225",  passageiros_max:"4",  assentos:"4",  data_matricula:"25/07/2022", gravames:"Sem gravames", validade_cva:"25/07/2026", validade_ca:"25/07/2026", valor_compra:"R$ 2.900.000", valor_estimado:"R$ 3.200.000", pct_valor:"100%", fonte_valor:"Avaliação ANAC 2025", resumo:"Helicóptero registrado na SPE. Empresa sem patrimônio — aeronave é o único ativo relevante." },
+    { n:13, proprietario:"PATRICÍA NUNES VALE",        cpf_cnpj:"***.530.884-**", operador:"VALE VERDE EMPREENDIMENTOS EIRELI",cpf_cnpj_op:"88.144.720/0001-55",radar:false, marca:"Cessna",      fabricante:"Textron Aviation",  modelo:"Turbo Stationair HD",nr_serie:"20809068",  nr_inscricao:"PR-PNV", nr_matricula:"PR-PNV-013", ano_fabricacao:"2020", tipo_icao:"C206", classe:"Avião",      categoria_registro:"Privado", tipo_operacao:"Transporte Particular", cd_cls:"APP", nr_pmd:"1.633",  passageiros_max:"6",  assentos:"6",  data_matricula:"18/02/2020", gravames:"Sem gravames", validade_cva:"18/02/2026", validade_ca:"18/02/2026", valor_compra:"R$ 1.200.000", valor_estimado:"R$ 1.350.000", pct_valor:"100%", fonte_valor:"Tabela FIPE Aeronaves 2025", resumo:"Nutricionista como proprietária. Aeronave operada pela empresa de fachada. Aquisição em período de pico dos contratos." },
+    { n:14, proprietario:"SILVIO GENTIL CORRÊA",       cpf_cnpj:"***.399.177-**", operador:"SILVIO GENTIL CORRÊA",            cpf_cnpj_op:"***.399.177-**",     radar:true,  marca:"Sikorsky",    fabricante:"Sikorsky Aircraft", modelo:"S-76C++",            nr_serie:"760817",    nr_inscricao:"PP-SGH", nr_matricula:"PP-SGH-014", ano_fabricacao:"2017", tipo_icao:"S76",  classe:"Helicóptero", categoria_registro:"Privado", tipo_operacao:"Transporte Particular", cd_cls:"AEH", nr_pmd:"5.307",  passageiros_max:"12", assentos:"12", data_matricula:"09/10/2017", gravames:"Sem gravames", validade_cva:"09/10/2026", validade_ca:"09/10/2026", valor_compra:"R$ 8.900.000", valor_estimado:"R$ 9.200.000", pct_valor:"100%", fonte_valor:"Avaliação ANAC 2025", resumo:"Segundo helicóptero do servidor. Capacidade para 12 passageiros — uso injustificado para servidor de nível médio." },
+    { n:15, proprietario:"FERNANDO AUGUSTO LACERDA",   cpf_cnpj:"***.709.518-**", operador:"ATLÂNTICO PARTICIPAÇÕES S/A",     cpf_cnpj_op:"12.789.456/0001-33", radar:true,  marca:"Dassault",    fabricante:"Dassault Aviation", modelo:"Falcon 2000LXS",     nr_serie:"361",       nr_inscricao:"PR-FAL", nr_matricula:"PR-FAL-015", ano_fabricacao:"2020", tipo_icao:"F2TH", classe:"Avião",      categoria_registro:"Empresarial", tipo_operacao:"Transporte Executivo",     cd_cls:"AFP", nr_pmd:"19.000", passageiros_max:"12", assentos:"12", data_matricula:"30/06/2020", gravames:"Alienação Fiduciária — Banco Itaú BBA", validade_cva:"30/06/2026", validade_ca:"30/06/2026", valor_compra:"R$ 38.000.000", valor_estimado:"R$ 41.000.000", pct_valor:"100%", fonte_valor:"Avaliação ANAC 2025", resumo:"Jato executivo de longo alcance. Principal veículo de deslocamento internacional do investigado principal. Voos para paraísos fiscais identificados." },
+  ],
+  embarcacoes: [
+    { n:1,  proprietario:"FERNANDO AUGUSTO LACERDA",   cpf_cnpj:"***.709.518-**", radar:true,  nome:"LACERDA I",         nr_inscricao:"RJ-024581-C", tipo:"Iate a Motor",       marca:"Azimut",    comprimento:"28m",  ano:"2022", municipio_ommar:"Rio de Janeiro / Capitania dos Portos/RJ", situacao:"ATIVA",   data_aquisicao:"2022", valor_estimado:"R$ 4.200.000", pct_valor:"100%", fonte_valor:"Avaliação Capitania 2025", resumo:"Iate de luxo. Atracado no Marina da Glória. Uso pessoal frequente identificado em logs do Porto." },
+    { n:2,  proprietario:"MARCELA FONSECA LIMA",       cpf_cnpj:"***.618.332-**", radar:true,  nome:"ARQUITETA",         nr_inscricao:"RJ-031122-C", tipo:"Iate a Vela",        marca:"Beneteau",  comprimento:"14m",  ano:"2021", municipio_ommar:"Angra dos Reis / Capitania dos Portos/RJ", situacao:"ATIVA",   data_aquisicao:"2021", valor_estimado:"R$ 890.000",   pct_valor:"100%", fonte_valor:"Avaliação Capitania 2025", resumo:"Veleiro de competição. Registrado em nome da arquiteta. Incompatível com rendimentos declarados." },
+    { n:3,  proprietario:"SILVIO GENTIL CORRÊA",       cpf_cnpj:"***.399.177-**", radar:true,  nome:"GENTIL MAR",        nr_inscricao:"RJ-019877-C", tipo:"Iate a Motor",       marca:"Sunseeker", comprimento:"22m",  ano:"2020", municipio_ommar:"Angra dos Reis / Capitania dos Portos/RJ", situacao:"ATIVA",   data_aquisicao:"2020", valor_estimado:"R$ 3.100.000", pct_valor:"100%", fonte_valor:"Avaliação Capitania 2025", resumo:"Servidor público como proprietário. Reuniões a bordo com outros investigados identificadas por vigilância." },
+    { n:4,  proprietario:"LACERDA INCORPORAÇÕES S/A",  cpf_cnpj:"33.412.081/0001-96", radar:true,  nome:"LACERDA PREMIER", nr_inscricao:"RJ-041009-C", tipo:"Mega-Iate",          marca:"Ferretti",  comprimento:"38m",  ano:"2023", municipio_ommar:"Rio de Janeiro / Marina da Glória",        situacao:"ATIVA",   data_aquisicao:"2023", valor_estimado:"R$ 18.500.000",pct_valor:"100%", fonte_valor:"Avaliação Capitania 2025", resumo:"Mega-iate registrado na empresa principal. 6 suítes, tripulação permanente. Despesas mensais estimadas em R$ 120.000." },
+    { n:5,  proprietario:"ATLÂNTICO PARTICIPAÇÕES S/A",cpf_cnpj:"12.789.456/0001-33", radar:false, nome:"ATLÂNTICO AZUL",  nr_inscricao:"RJ-033418-C", tipo:"Lancha a Motor",     marca:"Phantom",   comprimento:"9m",   ano:"2022", municipio_ommar:"Niterói / Capitania dos Portos/RJ",        situacao:"ATIVA",   data_aquisicao:"2022", valor_estimado:"R$ 420.000",   pct_valor:"100%", fonte_valor:"Avaliação Capitania 2025", resumo:"Lancha esportiva. Uso frequente para translados entre atracadouros investigados." },
+    { n:6,  proprietario:"ISABELA QUEIROZ SANTOS",     cpf_cnpj:"***.831.604-**", radar:false, nome:"BELLA MARE",        nr_inscricao:"RJ-055201-C", tipo:"Lancha a Motor",     marca:"Triton",    comprimento:"8m",   ano:"2023", municipio_ommar:"São Gonçalo / Capitania dos Portos/RJ",    situacao:"ATIVA",   data_aquisicao:"2023", valor_estimado:"R$ 280.000",   pct_valor:"100%", fonte_valor:"Avaliação Capitania 2025", resumo:"Registrada em nome da esposa do laranja. Renda incompatível." },
+    { n:7,  proprietario:"HENRIQUE BRAGA MATTOS",      cpf_cnpj:"***.270.519-**", radar:true,  nome:"BRAGA SEA",         nr_inscricao:"RJ-028834-C", tipo:"Iate a Motor",       marca:"Princess",  comprimento:"18m",  ano:"2021", municipio_ommar:"Angra dos Reis / Capitania dos Portos/RJ", situacao:"ATIVA",   data_aquisicao:"2021", valor_estimado:"R$ 2.400.000", pct_valor:"100%", fonte_valor:"Avaliação Capitania 2025", resumo:"Atracado em Angra dos Reis. Utilizado em reuniões com empresários investigados." },
+    { n:8,  proprietario:"TÚLIO RESENDE FARO",         cpf_cnpj:"***.148.263-**", radar:true,  nome:"RESENDE WIND",      nr_inscricao:"RJ-012345-C", tipo:"Iate a Vela",        marca:"Jeanneau",  comprimento:"16m",  ano:"2019", municipio_ommar:"Rio de Janeiro / Iate Clube do Rio",       situacao:"ATIVA",   data_aquisicao:"2019", valor_estimado:"R$ 1.100.000", pct_valor:"100%", fonte_valor:"Avaliação Capitania 2025", resumo:"Veleiro do operador financeiro. Rotas identificadas para costas uruguaia e argentina." },
+    { n:9,  proprietario:"ROBERTO SAMPAIO CRUZ",       cpf_cnpj:"***.204.711-**", radar:false, nome:"ENGENHEIRO",        nr_inscricao:"RJ-067711-C", tipo:"Lancha a Motor",     marca:"Cimitarra", comprimento:"7m",   ano:"2022", municipio_ommar:"Niterói / Capitania dos Portos/RJ",        situacao:"ATIVA",   data_aquisicao:"2022", valor_estimado:"R$ 190.000",   pct_valor:"100%", fonte_valor:"Avaliação Capitania 2025", resumo:"Lancha do engenheiro. Registrada em Niterói." },
+    { n:10, proprietario:"LACERDA INCORPORAÇÕES S/A",  cpf_cnpj:"33.412.081/0001-96", radar:true, nome:"LACERDA OCEAN",   nr_inscricao:"RJ-051890-C", tipo:"Embarcação de Apoio",marca:"Custom",    comprimento:"12m",  ano:"2020", municipio_ommar:"Rio de Janeiro / Marina da Glória",        situacao:"ATIVA",   data_aquisicao:"2020", valor_estimado:"R$ 780.000",   pct_valor:"100%", fonte_valor:"Avaliação Capitania 2025", resumo:"Embarcação de apoio ao mega-iate. Registrada na empresa principal." },
+    { n:11, proprietario:"CARLOS MOURA FILHO",         cpf_cnpj:"***.456.200-**", radar:false, nome:"CONTADOR NÁUTICO",  nr_inscricao:"RJ-039922-C", tipo:"Lancha a Motor",     marca:"Focker",    comprimento:"6m",   ano:"2021", municipio_ommar:"Rio de Janeiro / Marina da Glória",        situacao:"ATIVA",   data_aquisicao:"2021", valor_estimado:"R$ 120.000",   pct_valor:"100%", fonte_valor:"Avaliação Capitania 2025", resumo:"Lancha do contador. Valor modesto em relação ao restante do portfólio." },
+    { n:12, proprietario:"AUGUSTO PINHEIRO NETO",      cpf_cnpj:"***.887.633-**", radar:false, nome:"APOSENTADO FELIZ",  nr_inscricao:"RJ-044561-C", tipo:"Lancha a Motor",     marca:"Real",      comprimento:"7,5m", ano:"2022", municipio_ommar:"Rio de Janeiro / Capitania dos Portos/RJ", situacao:"ATIVA",   data_aquisicao:"2022", valor_estimado:"R$ 160.000",   pct_valor:"100%", fonte_valor:"Avaliação Capitania 2025", resumo:"Laranja (aposentado) com renda de R$ 2.000/mês como proprietário de embarcação e fazenda." },
+    { n:13, proprietario:"DELTA CONSTRUÇÕES SPE LTDA", cpf_cnpj:"96.320.118/0001-07", radar:true, nome:"DELTA WAVE",      nr_inscricao:"RJ-071199-C", tipo:"Iate a Motor",       marca:"Azimut",    comprimento:"16m",  ano:"2023", municipio_ommar:"Angra dos Reis / Capitania dos Portos/RJ", situacao:"ATIVA",   data_aquisicao:"2023", valor_estimado:"R$ 2.100.000", pct_valor:"100%", fonte_valor:"Avaliação Capitania 2025", resumo:"SPE sem atividade registra iate. Único ativo relevante da empresa junto à aeronave." },
+    { n:14, proprietario:"ADRIANA COSTA PRADO",        cpf_cnpj:"***.055.840-**", radar:false, nome:"ADVOCACIA MAR",     nr_inscricao:"RJ-080044-C", tipo:"Lancha a Motor",     marca:"Sedna",     comprimento:"8,5m", ano:"2021", municipio_ommar:"Angra dos Reis / Capitania dos Portos/RJ", situacao:"ATIVA",   data_aquisicao:"2021", valor_estimado:"R$ 220.000",   pct_valor:"100%", fonte_valor:"Avaliação Capitania 2025", resumo:"Advogada do grupo. Embarcação registrada em seu nome. Encontros a bordo com clientes investigados documentados." },
+    { n:15, proprietario:"SILVIO GENTIL CORRÊA",       cpf_cnpj:"***.399.177-**", radar:true,  nome:"GENTIL VENTO",      nr_inscricao:"RJ-015633-C", tipo:"Veleiro de Cruzeiro", marca:"Bavaria",  comprimento:"12m",  ano:"2018", municipio_ommar:"Paraty / Capitania dos Portos/RJ",         situacao:"ATIVA",   data_aquisicao:"2018", valor_estimado:"R$ 680.000",   pct_valor:"100%", fonte_valor:"Avaliação Capitania 2025", resumo:"Segunda embarcação do servidor público. Total de bens náuticos em nome de Silvio supera R$ 3,7 milhões." },
+  ],
+  solicitacoes: [
+    { n:1,  data:"03/06/2026", tipo:"Ofício",  dest:"Receita Federal",     assunto:"Informações cadastrais e DIRPF 2021-2025 — Fernando A. Lacerda",              status:"Respondido", resposta:"12/06/2026" },
+    { n:2,  data:"03/06/2026", tipo:"Ofício",  dest:"JUCERJA",             assunto:"Quadro societário — Lacerda Incorporações S/A e Atlântico Participações S/A",  status:"Respondido", resposta:"10/06/2026" },
+    { n:3,  data:"05/06/2026", tipo:"SINESP",  dest:"Sistema SINESP",      assunto:"Histórico veicular — 15 placas identificadas",                                  status:"Pendente",   resposta:null },
+    { n:4,  data:"07/06/2026", tipo:"Ofício",  dest:"ONR / Cartório",      assunto:"Matrículas dos 15 imóveis identificados",                                        status:"Pendente",   resposta:null },
+    { n:5,  data:"07/06/2026", tipo:"ANAC",    dest:"ANAC — SIPR",         assunto:"Registros aeronáuticos — 15 aeronaves identificadas",                            status:"Respondido", resposta:"14/06/2026" },
+    { n:6,  data:"08/06/2026", tipo:"Ofício",  dest:"Capitania dos Portos",assunto:"Registros náuticos — 15 embarcações identificadas",                              status:"Pendente",   resposta:null },
+    { n:7,  data:"10/06/2026", tipo:"CORTEX",  dest:"Sistema CORTEX",      assunto:"Cruzamento de dados de telefonia dos 15 investigados",                           status:"Aguardando", resposta:null },
+    { n:8,  data:"10/06/2026", tipo:"Ofício",  dest:"SEOBRAS/RJ",          assunto:"Contratos firmados 2019-2025 — empresas do grupo identificadas",                 status:"Pendente",   resposta:null },
+    { n:9,  data:"12/06/2026", tipo:"Ofício",  dest:"BACEN — COAF",        assunto:"RIF e informações sobre movimentações atípicas — grupo investigado",             status:"Aguardando", resposta:null },
+    { n:10, data:"15/06/2026", tipo:"Ofício",  dest:"Secretaria Estadual de Fazenda", assunto:"Certidões fiscais das 15 empresas identificadas",               status:"Pendente",   resposta:null },
+  ],
+  timeline: [
+    { data:"01/06/2026", evento:"Portaria CI²-NAPPRA nº 012/2026 — instauração da investigação", tipo:"marco" },
+    { data:"03/06/2026", evento:"Estudo de caso iniciado — levantamento documental e patrimonial preliminar", tipo:"acao" },
+    { data:"05/06/2026", evento:"Identificação dos 15 investigados principais (PF e PJ)", tipo:"acao" },
+    { data:"07/06/2026", evento:"Primeiros ofícios enviados: Receita Federal, JUCERJA e ANAC", tipo:"oficio" },
+    { data:"10/06/2026", evento:"Identificação de 15 bens imóveis, 15 veículos, 15 aeronaves e 15 embarcações", tipo:"marco" },
+    { data:"12/06/2026", evento:"Receita Federal responde — DIRPF confirma incompatibilidade patrimonial", tipo:"resposta" },
+    { data:"14/06/2026", evento:"ANAC confirma registros de 15 aeronaves vinculadas ao grupo", tipo:"resposta" },
+    { data:"18/06/2026", evento:"Ilha Estudo de Caso concluída — relatório de fase entregue", tipo:"marco" },
+    { data:"19/06/2026", evento:"Início da Fase II — Mineração de dados (cruzamento SISBAJUD, SINESP, SIAFI)", tipo:"marco" },
+    { data:"04/04/2026", evento:"Jorge Cavalcante Melo celebra acordo de Colaboração Premiada com o MPRJ", tipo:"marco" },
+  ],
+};
+
+/* ══════════════════════════════════════════
+   TELA CASO — COMPONENTE INDIVIDUAL DE CASO
+══════════════════════════════════════════ */
+function TelaCaso({ caso, temaCaso, usuario }) {
+  const isDark = temaCaso !== "claro";
+
+  const DARK = {
+    pagBg:"#0d1117", mainBg:"#0f1520", cardBg:"#1a1f2e", cardBg2:"#161b27",
+    border:"rgba(255,255,255,.07)", borderAcc:"rgba(200,151,58,.2)",
+    textMain:"#e2e8f0", textSec:"#94a3b8", textMuted:"rgba(255,255,255,.25)",
+    rowEven:"rgba(255,255,255,.03)", tagBg:"rgba(255,255,255,.06)",
+    sideBg:"#0d1117", sideAcc:"rgba(200,151,58,.08)",
+    btnSec:"rgba(255,255,255,.07)", btnSecBorder:"rgba(255,255,255,.12)", btnSecColor:"rgba(255,255,255,.65)",
+    subTabBg:"#12182a", subTabBorder:"rgba(255,255,255,.05)",
+    ilhaBg:"rgba(255,255,255,.04)", covBg:"rgba(255,255,255,.03)", entBg:"#0f1520",
+    inputBg:"#1e2433", inputBorder:"#334155",
+  };
+  const LIGHT = {
+    pagBg:"#eae6df", mainBg:"#f5f0e8", cardBg:"#ffffff", cardBg2:"#f9f7f3",
+    border:"#e2ddd6", borderAcc:"rgba(200,151,58,.3)",
+    textMain:"#1a1f2e", textSec:"#5a6474", textMuted:"#9ca3af",
+    rowEven:"#fafaf8", tagBg:"rgba(26,31,46,.05)",
+    sideBg:"#ede9e1", sideAcc:"rgba(200,151,58,.1)",
+    btnSec:"rgba(26,31,46,.06)", btnSecBorder:"rgba(26,31,46,.12)", btnSecColor:"#374151",
+    subTabBg:"#f0ece4", subTabBorder:"#e2ddd6",
+    ilhaBg:"rgba(26,31,46,.04)", covBg:"rgba(26,31,46,.03)", entBg:"#f5f0e8",
+    inputBg:"#ffffff", inputBorder:"#cdc8c0",
+  };
+  const T = isDark ? DARK : LIGHT;
+  const det = CASO_TESTE_DETALHE;
+
+  const SUB_ABAS = {
+    estudo:[{id:"ficha",l:"Ficha Geral"},{id:"proc",l:"Pesq. Processual"},{id:"solicit",l:"Solicitações"}],
+    minera:[
+      {id:"pf",         l:"Pessoas Físicas",   icon:"pf"},
+      {id:"pj",         l:"Pessoas Jurídicas", icon:"pj"},
+      {id:"imoveis",    l:"Bens Imóveis",      icon:"imovel"},
+      {id:"veic",       l:"Veículos",          icon:"veiculo"},
+      {id:"aeronaves",  l:"Aeronaves",         icon:"aeronave"},
+      {id:"embarcacoes",l:"Embarcações",       icon:"embarcacao"},
+      {id:"vinculos",   l:"Vínculos",          icon:"vinculo"},
+      {id:"rif",        l:"RIF",               icon:"rif"},
+      {id:"dashboard",  l:"Dashboard",         icon:"dashboard"},
+    ],
+    osint: [{id:"rsociais",l:"Redes Sociais"},{id:"geo",l:"Georef."},{id:"minbruta",l:"Min. Bruta"}],
+    relat: [{id:"compilado",l:"Compilado"},{id:"ltempo",l:"Linha do Tempo"}],
+  };
+
+  const [ilhaSel, setIlha]   = useState("minera");
+  const [subAba,  setSub]    = useState("pf");
+  const [pfView,  setPfView] = useState(null);
+  const [pjView,  setPjView] = useState(null);
+  const [prView,  setPrView] = useState(null);
+  const [sideTab, setSideTab]= useState("fases");
+  /* viewMode por aba — cada aba guarda separadamente Cards ou Tabela */
+  const [viewModes, setViewModes] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("nappra_views_"+caso.id)||'{}'); } catch { return {}; }
+  });
+  const viewMode = viewModes[subAba] || "tabela";
+  const setView = m => {
+    const next = {...viewModes, [subAba]: m};
+    setViewModes(next);
+    try { localStorage.setItem("nappra_views_"+caso.id, JSON.stringify(next)); } catch {}
+  };
+  const [sortInfo, setSortInfo] = useState({k:null, d:1});
+
+  /* ── Filtro do mapa de imóveis ── */
+  const [imovMapSel, setImovMapSel] = useState(null); // null = todos; Set de _n = filtrado
+  const [imovMapSearch, setImovMapSearch] = useState("");
+
+  /* ── Refs do mapa de imóveis (Leaflet) ── */
+  const imovMapRef     = useRef(null);
+  const imovMapInst    = useRef(null);
+  const imovMarkersRef = useRef([]);  // guarda markers para re-plotar ao filtrar
+
+  const imovPlotMarkers = (L, map, pts) => {
+    // Remove markers antigos
+    imovMarkersRef.current.forEach(m => m.remove());
+    imovMarkersRef.current = [];
+    const iconClr = t => { const s=(t||'').toLowerCase(); return s.includes('rural')?'#2d6a4f':s.includes('comer')?'#1d3461':'#7B1E2E'; };
+    pts.forEach(r => {
+      const cor = iconClr(r.tipo);
+      const ico = L.divIcon({className:'',
+        html:`<div style="width:30px;height:30px;background:${cor};border:2.5px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 8px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;"><span style="transform:rotate(45deg);color:#fff;font-size:9px;font-weight:800;font-family:sans-serif;">${r._n||r.n}</span></div>`,
+        iconSize:[30,30], iconAnchor:[15,30], popupAnchor:[0,-32]});
+      const val = Number(r.valor_estimado||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
+      const mk = L.marker([parseFloat(r.lat),parseFloat(r.lng)],{icon:ico})
+        .bindPopup(`<div style="font-family:sans-serif;min-width:230px;font-size:12px;">
+          <div style="background:${cor};color:#fff;padding:7px 10px;margin:-10px -10px 8px;border-radius:4px 4px 0 0;font-weight:800;">N&ordm; ${r._n||r.n} &mdash; ${r.tipo||'IMÓVEL'}</div>
+          <b>${r.proprietario||'—'}</b><br/>
+          <span style="color:#555;font-size:11px;">${r.logradouro||''}, ${r.numero||''} ${r.complemento||''}<br/>${r.bairro||''} &mdash; ${r.municipio||''}-${r.uf||''}</span>
+          <hr style="margin:6px 0;border:none;border-top:1px solid #eee;"/>
+          <span style="font-size:11px;">&#128207; <b>${r.area||'—'}</b> &nbsp;|&nbsp; <b style="color:#7B1E2E;">${val}</b></span><br/>
+          <span style="font-size:10px;color:#888;">Mat.: ${r.nr_matricula||'—'}</span><br/>
+          <a href="https://www.google.com/maps?q=${r.lat},${r.lng}" target="_blank" rel="noreferrer" style="font-size:10px;color:#1d3461;">&#128279; Ver no Google Maps</a>
+        </div>`,{maxWidth:290}).addTo(map);
+      imovMarkersRef.current.push(mk);
+    });
+  };
+
+  useEffect(() => {
+    const isMapView = subAba === "imoveis" && viewMode === "mapa";
+    if (!isMapView) {
+      if (imovMapInst.current) { imovMapInst.current.remove(); imovMapInst.current = null; imovMarkersRef.current = []; }
+      return;
+    }
+    if (!document.getElementById('leaflet-css')) {
+      const lnk = document.createElement('link');
+      lnk.id = 'leaflet-css'; lnk.rel = 'stylesheet';
+      lnk.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(lnk);
+    }
+    const allSrc = (det.bensImoveis||[]).map((b,i)=>({...b,_n:i+1,proprietario:b.proprietario||b.titular,logradouro:b.logradouro||b.descricao,nr_matricula:b.nr_matricula||b.registro,valor_estimado:b.valor_estimado||b.valor}));
+    const allPts = allSrc.filter(r=>r.lat&&r.lng);
+    const selPts = imovMapSel === null ? allPts : allPts.filter(r=>imovMapSel.has(r._n));
+
+    // Se o mapa já existe, apenas re-plota marcadores
+    if (imovMapInst.current && window.L) {
+      imovPlotMarkers(window.L, imovMapInst.current, selPts);
+      return;
+    }
+
+    const initMap = () => {
+      if (imovMapInst.current || !imovMapRef.current) return;
+      const L = window.L; if (!L) return;
+      if (!allPts.length) return;
+      const cx = allPts.reduce((a,r)=>a+parseFloat(r.lat),0)/allPts.length;
+      const cy = allPts.reduce((a,r)=>a+parseFloat(r.lng),0)/allPts.length;
+      const map = L.map(imovMapRef.current).setView([cx,cy], 11);
+      imovMapInst.current = map;
+      L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',{
+        attribution:'© Google Maps',maxZoom:20,subdomains:['0','1','2','3']
+      }).addTo(map);
+      imovPlotMarkers(L, map, selPts);
+    };
+    if (window.L) { setTimeout(initMap, 50); }
+    else if (!document.getElementById('leaflet-js')) {
+      const sc = document.createElement('script'); sc.id='leaflet-js';
+      sc.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      sc.onload=()=>setTimeout(initMap,50); document.head.appendChild(sc);
+    } else { const ck=setInterval(()=>{if(window.L){clearInterval(ck);setTimeout(initMap,50);}},100); }
+    return ()=>{ if(imovMapInst.current){imovMapInst.current.remove();imovMapInst.current=null;imovMarkersRef.current=[];} };
+  }, [subAba, viewMode, det, imovMapSel]);
+
+  /* ── Colunas extras livres por entidade ── */
+  const [xCols, setXCols] = useState(() => { try { return JSON.parse(localStorage.getItem("nappra_xcols_"+caso.id)||'{}'); } catch { return {}; } });
+  const [xVals, setXVals] = useState(() => { try { return JSON.parse(localStorage.getItem("nappra_xvals_"+caso.id)||'{}'); } catch { return {}; } });
+  const saveXCols = next => { setXCols(next); try { localStorage.setItem("nappra_xcols_"+caso.id, JSON.stringify(next)); } catch {} };
+  const saveXVals = next => { setXVals(next); try { localStorage.setItem("nappra_xvals_"+caso.id, JSON.stringify(next)); } catch {} };
+
+  /* modal de adicionar coluna: {entType, name, afterKey} | null */
+  const [addColModal, setAddColModal] = useState(null);
+  /* célula sendo editada inline: {entType, rowKey, colId, val} | null */
+  const [editCell, setEditCell] = useState(null);
+  /* filtros por coluna: { entType: { colKey: Set(valores) } } */
+  const [colFilters, setColFilters] = useState({});
+  /* dropdown de filtro aberto: { entType, colKey } | null */
+  const [filterOpen, setFilterOpen] = useState(null);
+  /* ── Desmascara valores fictícios (substitui * por dígitos determinísticos) ── */
+  const unmaskVal = v => {
+    if (!v || typeof v !== 'string' || !v.includes('*')) return v;
+    let s = v.split('').reduce((a,c)=>((a*31)|0)+c.charCodeAt(0), 7919);
+    return v.replace(/\*/g, ()=>{ s=((s*1664525)|0)+1013904223; return Math.abs(s)%10; });
+  };
+
+  /* ── Helpers reutilizáveis para células de tabela ── */
+  const chkCell  = val => val
+    ? <span style={{color:'#16a34a',fontWeight:800,fontSize:13}}>✓</span>
+    : <span style={{color:'#bbb'}}>—</span>;
+  const fntCell  = (row, k) => (row.fontes||{})[k]
+    ? <span style={{color:'#16a34a',fontWeight:800,fontSize:13}}>✓</span>
+    : <span style={{color:'#ccc',fontSize:11}}>—</span>;
+  const locBdg   = row => row._source==='local'
+    ? <span style={{fontSize:9,fontWeight:800,padding:'2px 7px',borderRadius:3,background:'rgba(200,151,58,.15)',color:'#9a6d10',border:'1px solid rgba(200,151,58,.4)'}}>LOCAL</span>
+    : null;
+  const curCell  = val => <span style={{fontWeight:700,color:"#7B1E2E"}}>{val||'—'}</span>;
+  const txtC     = (val, bold) => { const v=unmaskVal(val); return <span translate="no" style={{color:v?'#1a1a1a':'#aaa',fontWeight:bold?700:400}}>{v||'—'}</span>; };
+  const nCell    = i => <span style={{color:'#888',fontSize:11}}>{i+1}</span>;
+  const placaCell= val => <span style={{fontWeight:700,color:'#1a1a1a',fontFamily:"'JetBrains Mono',monospace",letterSpacing:".04em",fontSize:11,background:'#f0f0f0',padding:'1px 5px',borderRadius:3,border:'1px solid #ccc'}} translate="no">{val||'—'}</span>;
+  /* geoCell — exibe coordenada com fonte mono; destaca se preenchido automaticamente */
+  const geoCell  = val => val
+    ? <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:'#1a6b3c',fontWeight:600,letterSpacing:".01em"}} translate="no">{val}</span>
+    : <span style={{color:'#aaa',fontSize:11}}>—</span>;
+
+  /* sitBdg — badge de situação com paleta semântica */
+  const sitBdg = sit => {
+    const map = {
+      'ATIVA':    {bg:'#dcfce7',tx:'#15803d',bd:'#86efac'},
+      'Ativa':    {bg:'#dcfce7',tx:'#15803d',bd:'#86efac'},
+      'REGULAR':  {bg:'#dcfce7',tx:'#15803d',bd:'#86efac'},
+      'Regular':  {bg:'#dcfce7',tx:'#15803d',bd:'#86efac'},
+      'INATIVA':  {bg:'#fee2e2',tx:'#b91c1c',bd:'#fca5a5'},
+      'Inativa':  {bg:'#fee2e2',tx:'#b91c1c',bd:'#fca5a5'},
+      'IRREGULAR':{bg:'#fff7ed',tx:'#c2410c',bd:'#fdba74'},
+      'Irregular':{bg:'#fff7ed',tx:'#c2410c',bd:'#fdba74'},
+      'PENDENTE': {bg:'#fef9c3',tx:'#854d0e',bd:'#fde047'},
+      'Pendente': {bg:'#fef9c3',tx:'#854d0e',bd:'#fde047'},
+      'BAIXADA':  {bg:'#f3f4f6',tx:'#6b7280',bd:'#d1d5db'},
+      'Baixada':  {bg:'#f3f4f6',tx:'#6b7280',bd:'#d1d5db'},
+    };
+    const c = map[sit||''] || {bg:'#f3f4f6',tx:'#888',bd:'#d1d5db'};
+    return <span style={{fontSize:10,fontWeight:800,padding:'2px 8px',borderRadius:3,
+      background:c.bg,color:c.tx,border:`1px solid ${c.bd}`,whiteSpace:'nowrap'}}>{sit||'—'}</span>;
+  };
+
+  /* sexoBdg — ícone + label de sexo */
+  const sexoBdg = val => {
+    if (!val) return <span style={{color:'#aaa'}}>—</span>;
+    const masc = val.toUpperCase().startsWith('M');
+    return <span style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:10,fontWeight:700,
+      padding:'2px 8px',borderRadius:3,
+      background:masc?'#eff6ff':'#fdf2f8',
+      color:masc?'#1d4ed8':'#9d174d',
+      border:`1px solid ${masc?'#bfdbfe':'#fbcfe8'}`}}>
+      {masc ? '♂' : '♀'} {val}
+    </span>;
+  };
+
+  /* vinculoBdg — badge de vínculo com cores por tipo */
+  const vinculoBdg = val => {
+    if (!val) return <span style={{color:'#aaa'}}>—</span>;
+    const map = {
+      'PRÓPRIO':           {bg:'#f0fdf4',tx:'#166534',bd:'#86efac'},
+      'LARANJA':           {bg:'#fff7ed',tx:'#9a3412',bd:'#fdba74'},
+      'INTERPOSTA PESSOA': {bg:'#fef3c7',tx:'#92400e',bd:'#fcd34d'},
+      'TESTEMUNHA':        {bg:'#f5f3ff',tx:'#5b21b6',bd:'#c4b5fd'},
+      'CÔNJUGE':           {bg:'#fdf2f8',tx:'#9d174d',bd:'#fbcfe8'},
+      'SÓCIO':             {bg:'#eff6ff',tx:'#1e40af',bd:'#93c5fd'},
+      'PARENTE':           {bg:'#fff1f2',tx:'#9f1239',bd:'#fda4af'},
+    };
+    const key = Object.keys(map).find(k => val.toUpperCase().includes(k)) || '';
+    const c = map[key] || {bg:'#f3f4f6',tx:'#555',bd:'#d1d5db'};
+    return <span style={{fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:3,
+      background:c.bg,color:c.tx,border:`1px solid ${c.bd}`,whiteSpace:'nowrap'}}>{val}</span>;
+  };
+
+  /* booBdg — badge booleano Sim/Não */
+  const booBdg = val => val
+    ? <span style={{fontSize:10,fontWeight:800,padding:'2px 8px',borderRadius:3,background:'#dcfce7',color:'#15803d',border:'1px solid #86efac'}}>SIM</span>
+    : <span style={{fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:3,background:'#f3f4f6',color:'#888',border:'1px solid #d1d5db'}}>NÃO</span>;
+
+  /* dirBdg — badge de direção */
+  const dirBdg = val => {
+    if (!val) return <span style={{color:'#aaa'}}>—</span>;
+    return <span style={{fontSize:11,fontWeight:800,padding:'2px 8px',borderRadius:3,
+      background:'#f5f3ff',color:'#6d28d9',border:'1px solid #c4b5fd',
+      fontFamily:"'JetBrains Mono',monospace",letterSpacing:'.04em'}}>{val}</span>;
+  };
+
+  /* avCell — foto real PF, paleta quente harmônica com layout bordô/bege */
+  const AV_PALETTE = [
+    "#7B1E2E","#9a2d3f","#5a1520","#8B4513","#6B3A2A",
+    "#4A3728","#7c5c3e","#5c4033","#8B6914","#6B5310",
+  ];
+  const avCell = row => {
+    const nm    = row.nome||'?';
+    const ini   = [...nm.split(' ').filter(Boolean).map(w=>w[0])].slice(0,2).join('');
+    const idx   = [...nm].reduce((a,c)=>a+c.charCodeAt(0),0);
+    const isMale= !(row.sexo||'').toLowerCase().includes('fem');
+    const n     = (idx % 49) + 1;
+    const foto  = row.foto || `https://randomuser.me/api/portraits/${isMale?'men':'women'}/${n}.jpg`;
+    const bg    = AV_PALETTE[idx % AV_PALETTE.length];
+    return (
+      <div style={{width:34,height:34,borderRadius:'50%',overflow:'hidden',flexShrink:0,
+        border:'2px solid rgba(123,30,46,.35)',boxShadow:'0 1px 4px rgba(0,0,0,.18)',
+        background:bg, display:'flex',alignItems:'center',justifyContent:'center',
+        fontSize:10,fontWeight:800,color:'#fff',letterSpacing:'.03em',position:'relative'}}>
+        <span style={{position:'absolute',zIndex:1}}>{ini}</span>
+        <img src={foto} alt={nm} style={{width:'100%',height:'100%',objectFit:'cover',position:'absolute',top:0,left:0,zIndex:2}}
+          onError={e=>{e.target.style.display='none';}}/>
+      </div>
+    );
+  };
+
+  /* lgCell — logo PJ */
+  const LOGO_COLORS = ['7B1E2E','1a3a6b','2d6a4f','b5451b','1d3461','4a4e69','7c3aed','0f766e','b45309','6b21a8'];
+  const lgCell = row => {
+    const ini   = (row.razao||'?').split(' ').filter(Boolean).map(w=>w[0]).slice(0,2).join('').toUpperCase();
+    const cidx  = (row.razao||'').split('').reduce((a,c)=>a+c.charCodeAt(0),0) % LOGO_COLORS.length;
+    const bg    = LOGO_COLORS[cidx];
+    const logo  = row.logo || `https://ui-avatars.com/api/?name=${encodeURIComponent(ini)}&background=${bg}&color=fff&bold=true&size=64&format=png`;
+    return (
+      <div style={{width:30,height:30,borderRadius:4,overflow:'hidden',flexShrink:0,
+        border:'1px solid rgba(123,30,46,.2)',background:`#${bg}`,
+        display:'flex',alignItems:'center',justifyContent:'center',
+        fontSize:9,fontWeight:800,color:'#fff',position:'relative'}}>
+        <span style={{position:'absolute',zIndex:1}}>{ini}</span>
+        <img src={logo} alt={ini} style={{width:'100%',height:'100%',objectFit:'cover',position:'absolute',top:0,left:0,zIndex:2}}
+          onError={e=>{e.target.style.display='none';}}/>
+      </div>
+    );
+  };
+
+  const pfCpfs = useMemo(()=> new Set(det.pf.map(p=>p.cpf)), []);
+
+  const handleIlha = (id) => { setIlha(id); setSub(SUB_ABAS[id][0].id); setPfView(null); setPjView(null); setPrView(null); };
+
+  // Cores por ilha
+  const ilhaAcc = { estudo:"#d4a84b", minera:"#a78bfa", osint:"#60a5fa", relat:"#4ade80" };
+  const ilhaAcc2 = { estudo:"#b8860b", minera:"#7c3aed", osint:"#2563eb", relat:"#16a34a" };
+
+  // Estilos reutilizáveis
+  const s = {
+    page:    { background:T.pagBg, minHeight:"100%", display:"flex", flexDirection:"column", fontFamily:"'Plus Jakarta Sans', sans-serif" },
+    topbar:  { background:"#7B1E2E", padding:"0 20px", height:52, display:"flex", alignItems:"center", gap:12, flexShrink:0 },
+    body:    { display:"flex", flex:1, overflow:"hidden" },
+    sidebar: { width:240, background:T.sideBg, borderRight:`1px solid ${T.border}`, display:"flex", flexDirection:"column", flexShrink:0, overflowY:"auto" },
+    main:    { flex:1, overflowY:"auto", padding:"12px 24px" },
+    card:    { background:T.cardBg, border:`1px solid ${T.border}`, borderRadius:10, padding:"16px 20px", marginBottom:16 },
+    label:   { fontSize:10, fontWeight:700, letterSpacing:".08em", textTransform:"uppercase", color:T.textMuted, marginBottom:6 },
+    h2:      { fontSize:14, fontWeight:700, color:T.textMain, margin:0 },
+    tag:     { fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:4, background:T.tagBg, color:T.textSec, letterSpacing:".05em" },
+    row:     { display:"flex", alignItems:"center", gap:8 },
+  };
+
+  /* ── Sidebar toggle ── */
+  const [showSidebar, setShowSidebar] = useState(false);
+
+  /* ── Ícones SVG das entidades ── */
+  const EntIcon = ({id, cor, size=18}) => {
+    const st = {fill:"none",stroke:cor,strokeWidth:"1.8",strokeLinecap:"round",strokeLinejoin:"round"};
+    const icons = {
+      pf: <g><circle cx="12" cy="8" r="3.5"/><path d="M4 20c0-3.9 3.6-7 8-7s8 3.1 8 7"/></g>,
+      pj: <g><rect x="2" y="9" width="20" height="12" rx="1.5"/><path d="M16 9V6a2 2 0 00-2-2h-4a2 2 0 00-2 2v3"/><line x1="12" y1="13" x2="12" y2="17"/><line x1="10" y1="15" x2="14" y2="15"/></g>,
+      veiculo: <g><path d="M5 11l1.5-4.5h11L19 11"/><rect x="2" y="11" width="20" height="7" rx="1.5"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/><path d="M2 15h20"/></g>,
+      aeronave: <g><path d="M21 16v-2l-8-5V4a1.5 1.5 0 00-3 0v5l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></g>,
+      embarcacao: <g><path d="M3 17a9.9 9.9 0 0018 0"/><path d="M5 17l-2-7h18l-2 7"/><path d="M12 4v6"/><path d="M8 7l4-3 4 3"/></g>,
+      imovel: <g><path d="M3 10.5L12 3l9 7.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1z"/><path d="M9 21V13h6v8"/></g>,
+    };
+    return <svg viewBox="0 0 24 24" width={size} height={size} {...st}>{icons[id]}</svg>;
+  };
+
+  /* ── Entidades: constantes e estado ── */
+  const ENTS_TIPOS = [
+    { id:"pf",         l:"Pessoa Física",   cor:"#a78bfa" },
+    { id:"pj",         l:"Pessoa Jurídica", cor:"#60a5fa" },
+    { id:"veiculo",    l:"Veículo",         cor:"#f97316" },
+    { id:"aeronave",   l:"Aeronave",        cor:"#34d399" },
+    { id:"embarcacao", l:"Embarcação",      cor:"#22d3ee" },
+    { id:"imovel",     l:"Imóvel",          cor:"#fb923c" },
+  ];
+  const FONTES_LISTA = [
+    {n:"Portal Seg.",k:"ps"},{n:"Pandora",k:"pa"},{n:"SINESP",k:"si"},{n:"Receita",k:"re"},
+    {n:"CORTEX",k:"cx"},{n:"JUCERJA",k:"ju"},{n:"CREDLINK",k:"cl"},{n:"ONR",k:"on"},
+    {n:"OSINT",k:"os"},{n:"SOCMINT",k:"sm"},{n:"RCPJ",k:"rc"},{n:"CBMERJ",k:"cb"},
+    {n:"DOI",k:"doi"},{n:"Of. Detran",k:"detran"},{n:"Ônus Reais",k:"onus"},{n:"ANAC",k:"anac"},{n:"Capitania",k:"capitania"},
+  ];
+  const FONTES_VAZIO = {ps:false,pa:false,si:false,re:false,cx:false,ju:false,cl:false,on:false,os:false,sm:false,rc:false,cb:false,doi:false,detran:false,onus:false,anac:false,capitania:false};
+  const FONTES_POR_ENT = {
+    pf:         [{n:"Portal Seg.",k:"ps"},{n:"Pandora",k:"pa"},{n:"SINESP",k:"si"},{n:"Receita",k:"re"},{n:"CORTEX",k:"cx"},{n:"JUCERJA",k:"ju"},{n:"CREDLINK",k:"cl"},{n:"ONR",k:"on"},{n:"OSINT",k:"os"}],
+    pj:         [{n:"JUCERJA",k:"ju"},{n:"CORTEX",k:"cx"},{n:"Receita",k:"re"},{n:"Portal Seg.",k:"ps"},{n:"SINESP",k:"si"},{n:"Pandora",k:"pa"},{n:"CREDLINK",k:"cl"},{n:"RCPJ",k:"rc"},{n:"ONR",k:"on"},{n:"CBMERJ",k:"cb"},{n:"OSINT",k:"os"},{n:"SOCMINT",k:"sm"}],
+    veiculo:    [{n:"Portal Seg.",k:"ps"},{n:"Pandora",k:"pa"},{n:"SINESP",k:"si"},{n:"Receita",k:"re"},{n:"CORTEX",k:"cx"},{n:"Of. Detran",k:"detran"},{n:"CREDLINK",k:"cl"},{n:"OSINT",k:"os"},{n:"SOCMINT",k:"sm"}],
+    aeronave:   [{n:"Portal Seg.",k:"ps"},{n:"Pandora",k:"pa"},{n:"SINESP",k:"si"},{n:"Receita",k:"re"},{n:"Ônus Reais",k:"onus"},{n:"ANAC",k:"anac"},{n:"OSINT",k:"os"},{n:"SOCMINT",k:"sm"}],
+    embarcacao: [{n:"Portal Seg.",k:"ps"},{n:"Pandora",k:"pa"},{n:"SINESP",k:"si"},{n:"Receita",k:"re"},{n:"CORTEX",k:"cx"},{n:"Capitania",k:"capitania"},{n:"OSINT",k:"os"},{n:"SOCMINT",k:"sm"}],
+    imovel:     [{n:"JUCERJA",k:"ju"},{n:"CORTEX",k:"cx"},{n:"Receita",k:"re"},{n:"Portal Seg.",k:"ps"},{n:"SINESP",k:"si"},{n:"Pandora",k:"pa"},{n:"CREDLINK",k:"cl"},{n:"RCPJ",k:"rc"},{n:"DOI",k:"doi"},{n:"ONR",k:"on"},{n:"CBMERJ",k:"cb"},{n:"OSINT",k:"os"},{n:"SOCMINT",k:"sm"}],
+  };
+  const FORM_DEF = {
+    pf: {
+      foto:'',classificacao:'',nome:'',cpf:'',rg:'',sexo:'MASCULINO',resumo:'',
+      vinculo:'PRÓPRIO',direcao:'A<-->B',alvo_central:'',cpf_alvo:'',
+      profissao:'',nacionalidade:'BRASILEIRO',naturalidade:'',passaporte:'',
+      nasc:'',pai:'',cpf_pai:'',mae:'',cpf_mae:'',
+      servidor_publico:false,funcao_publica:'',nomeacao:'',exoneracao:'',
+      fontes:{...FONTES_VAZIO},
+    },
+    pj: {
+      logo:'',classificacao:'',razao:'',cnpj:'',nome_fantasia:'',data_abertura:'',
+      situacao:'ATIVA',vinculo:'EMPRESA PRINCIPAL',logradouro:'',numero:'',
+      complemento:'',bairro:'',municipio:'',uf:'',cep:'',telefone:'',email:'',
+      cnae_principal:'',cnae_secundario:'',capital_social:'',integralizado:'',pct_capital:'',
+      alvo_central:'',cpf_alvo:'',orgao_publico:'',resumo:'',
+      fontes:{...FONTES_VAZIO},
+    },
+    veiculo: {
+      proprietario:'',cpf_cnpj:'',placa:'',marca_modelo:'',cor:'',ano:'',
+      chassi:'',renavam:'',municipio:'',uf:'',roubo:false,blindado:false,
+      situacao:'',radar:'',data_aquisicao:'',data_venda:'',valor_estimado:'',
+      fonte_valor:'',data_consulta_valor:'',resumo:'',
+      fontes:{...FONTES_VAZIO},
+    },
+    aeronave: {
+      proprietario:'',cpf_cnpj:'',radar:false,marca:'',nr_serie:'',nr_inscricao:'',
+      operador:'',cpf_cnpj_op:'',tipo_icao:'',fabricante:'',cd_cls:'',nr_pmd:'',
+      ano_fabricacao:'',modelo:'',passageiros_max:'',assentos:'',classe:'TRANSPORTE',
+      categoria_registro:'PRIVADA',nr_matricula:'',data_matricula:'',gravames:'',
+      validade_cva:'',validade_ca:'',tipo_operacao:'',valor_compra:'',
+      fonte_valor:'',data_consulta_valor:'',valor_estimado:'',pct_valor:'',resumo:'',
+      fontes:{...FONTES_VAZIO},
+    },
+    embarcacao: {
+      proprietario:'',cpf_cnpj:'',radar:false,nr_inscricao:'',tipo:'LANCHA',
+      marca:'',nome:'',comprimento:'',municipio_ommar:'',ano:'',
+      data_aquisicao:'',valor_estimado:'',pct_valor:'',fonte_valor:'',
+      data_consulta_valor:'',situacao:'',resumo:'',
+      fontes:{...FONTES_VAZIO},
+    },
+    imovel: {
+      proprietario:'',cpf_cnpj:'',tipo:'RESIDENCIAL',logradouro:'',numero:'',
+      complemento:'',bairro:'',municipio:'',uf:'',cep:'',
+      lat:'',lng:'',inscricao_predial:'',nr_matricula:'',cartorio:'',area:'',
+      data_op1:'',valor_op1:'',pagto1:'—',situacao1:'—',alienantes1:'',adquirentes1:'',
+      data_op2:'',valor_op2:'',pagto2:'—',situacao2:'—',alienantes2:'',adquirentes2:'',
+      fonte_consulta:'',data_consulta:'',valor_estimado:'',pct_valor:'',resumo:'',
+      fontes:{...FONTES_VAZIO},
+    },
+  };
+  const [showEntMenu, setShowEntMenu] = useState(false);
+  const [entModal,    setEntModal]    = useState(null);
+  const [formData,    setFormData]    = useState({});
+  const [entLocais,   setEntLocais]   = useState(()=>{
+    try { return JSON.parse(localStorage.getItem("nappra_ent_"+caso.id)||"{}"); }
+    catch { return {}; }
+  });
+  const setF    = (k,v) => setFormData(p=>({...p,[k]:v}));
+  const setFont = (k,v) => setFormData(p=>({...p,fontes:{...p.fontes,[k]:v}}));
+  const abrirEntModal = (tipo) => { setFormData({...FORM_DEF[tipo],fontes:{...FONTES_VAZIO}}); setEntModal(tipo); setShowEntMenu(false); };
+  const salvarEntidade = () => {
+    const novo = {...formData, _local:true, _ts: new Date().toLocaleString("pt-BR") };
+    const novas = {...entLocais, [entModal]:[...(entLocais[entModal]||[]), novo]};
+    setEntLocais(novas);
+    try { localStorage.setItem("nappra_ent_"+caso.id, JSON.stringify(novas)); } catch(e){}
+    setEntModal(null);
+  };
+
+  const FonteBadge = ({ ok, nome }) => (
+    <span style={{ fontSize:9, fontWeight:700, padding:"2px 6px", borderRadius:4,
+      background: ok ? "rgba(74,222,128,.12)" : T.tagBg,
+      color: ok ? "#4ade80" : T.textMuted,
+      border: `1px solid ${ok ? "rgba(74,222,128,.25)" : T.border}`,
+    }} translate="no">{nome}</span>
+  );
+
+  const BackBtn = ({ onClick, label }) => (
+    <button onClick={onClick} style={{
+      display:"flex", alignItems:"center", gap:6, background:"none", border:`1px solid ${T.border}`,
+      borderRadius:6, padding:"5px 12px", cursor:"pointer", color:T.textSec, fontSize:12, marginBottom:14,
+    }}>
+      <span>←</span> {label}
+    </button>
+  );
+
+  // ── SIDEBAR
+  const renderSidebar = () => (
+    <div style={s.sidebar}>
+      <div style={{ padding:"14px 16px", borderBottom:`1px solid ${T.border}` }}>
+        <div style={{ display:"flex", gap:6, marginBottom:12 }}>
+          {["fases","fontes"].map(t=>(
+            <button key={t} onClick={()=>setSideTab(t)} style={{
+              flex:1, padding:"5px 0", borderRadius:6, fontSize:11, fontWeight:600, cursor:"pointer", border:"none",
+              background: sideTab===t ? "rgba(200,151,58,.2)" : T.btnSec,
+              color: sideTab===t ? "#c8973a" : T.textSec,
+            }}>{t==="fases"?"Fases":"Fontes"}</button>
+          ))}
+        </div>
+        {sideTab==="fases" && det.ilhas.map(il=>{
+          const ativo = ilhaSel===il.id;
+          return (
+            <div key={il.id} onClick={()=>handleIlha(il.id)} style={{
+              padding:"10px 12px", borderRadius:8, marginBottom:6, cursor:"pointer",
+              background: ativo ? `${il.acc}15` : T.ilhaBg,
+              border: `1px solid ${ativo ? il.acc+"40" : T.border}`,
+            }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:5 }}>
+                <span style={{ fontSize:11, fontWeight:700, color: ativo ? il.acc : T.textSec }}>{il.nome}</span>
+                <span style={{ fontSize:10, fontWeight:700, color: il.pct===100 ? "#4ade80" : il.pct>0 ? il.acc : T.textMuted }}>{il.pct}%</span>
+              </div>
+              <div style={{ height:3, background:T.border, borderRadius:2, overflow:"hidden" }}>
+                <div style={{ height:"100%", width:`${il.pct}%`, background: il.pct===100?"#4ade80":il.acc, borderRadius:2, transition:"width .4s" }}/>
+              </div>
+              <div style={{ fontSize:9, color:T.textMuted, marginTop:4 }}>
+                {il.dias}/{il.total} dias · {il.status}
+              </div>
+            </div>
+          );
+        })}
+        {sideTab==="fontes" && (
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:4 }}>
+            {[
+              {nome:"Portal Seg.",k:"ps"},{nome:"Pandora",k:"pa"},{nome:"SINESP",k:"si"},
+              {nome:"Receita",k:"re"},{nome:"CORTEX",k:"cx"},{nome:"JUCERJA",k:"ju"},
+              {nome:"CREDLINK",k:"cl"},{nome:"ONR",k:"on"},{nome:"OSINT",k:"os"},
+              {nome:"SOCMINT",k:"sm"},{nome:"RCPJ",k:"rc"},{nome:"CBMERJ",k:"cb"},
+            ].map(f=>{
+              const pfOk  = det.pf.some(p=>p.fontes[f.k]);
+              const pjOk  = det.pj.some(p=>p.fontes[f.k]);
+              const ok = pfOk||pjOk;
+              return (
+                <div key={f.k} style={{
+                  padding:"5px 8px", borderRadius:6, fontSize:9, fontWeight:700,
+                  background: ok ? "rgba(74,222,128,.08)" : T.tagBg,
+                  border:`1px solid ${ok?"rgba(74,222,128,.2)":T.border}`,
+                  color: ok ? "#4ade80" : T.textMuted,
+                  textAlign:"center",
+                }} translate="no">{f.nome}</div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Solicitações resumo */}
+      <div style={{ padding:"14px 16px" }}>
+        <div style={s.label}>Solicitações</div>
+        {det.solicitacoes.map(sl=>(
+          <div key={sl.n} style={{ padding:"8px 10px", borderRadius:7, marginBottom:5, background:T.covBg, border:`1px solid ${T.border}` }}>
+            <div style={{ fontSize:10, fontWeight:700, color:T.textMain, marginBottom:2 }} translate="no">{sl.dest}</div>
+            <div style={{ fontSize:9, color:T.textMuted }}>{sl.data}</div>
+            <span style={{
+              fontSize:9, fontWeight:700, padding:"1px 6px", borderRadius:3, marginTop:4, display:"inline-block",
+              background: sl.status==="Respondido" ? "rgba(74,222,128,.12)" : sl.status==="Pendente" ? "rgba(251,191,36,.12)" : T.tagBg,
+              color: sl.status==="Respondido" ? "#4ade80" : sl.status==="Pendente" ? "#fbbf24" : T.textMuted,
+            }}>{sl.status}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  // ── SUB-TABS
+  /* ─────────────────────────────────────────────────────────────────────────
+     renderTabela — Paleta Bordô MPRJ · Filtro por coluna · Scrollbar visível
+  ───────────────────────────────────────────────────────────────────────── */
+  const renderTabela = (cols, rows, _a, _b, entType) => {
+    const P = {
+      hdr:"#7B1E2E", hdrAct:"#5a1520", hdrTxt:"#fff8f0", sortIco:"#D4A017",
+      xHdr:"#9a2d3f", row1:"#ffffff", row2:"#fdf6f0", hover:"#fdeee8",
+      bord:"#e8d5cb", bordOut:"#c4a090", foot:"#fdf6f0",
+      txt:"#1a1a1a", muted:"#999", xCell:"#fdf8f5", xEdit:"#fffbe6",
+      filterHdr:"#4a0d1a", /* header de coluna com filtro ativo */
+    };
+
+    /* ── Colunas extras ── */
+    const extras = entType ? (xCols[entType]||[]) : [];
+    const buildCols = () => {
+      if (!extras.length) return cols;
+      const result = [...cols];
+      const se = [...extras].sort((a,b)=>{
+        const ia=result.findIndex(c=>c.key===a.afterKey), ib=result.findIndex(c=>c.key===b.afterKey);
+        return ib-ia;
+      });
+      se.forEach(xc=>{
+        const pos=result.findIndex(c=>c.key===xc.afterKey);
+        result.splice(pos>=0?pos+1:result.length,0,{key:xc.id,label:xc.label,w:xc.w||160,_extra:true});
+      });
+      return result;
+    };
+    const allCols = buildCols();
+
+    /* ── Colunas congeladas: calcula offset left de cada coluna frozen ── */
+    let _sLeft = 0;
+    const frozenLeft = {};
+    allCols.forEach(c => { if (c.frozen) { frozenLeft[c.key] = _sLeft; _sLeft += (c.w||70); } });
+    const frozenKeys = Object.keys(frozenLeft);
+    const lastFrozenKey = frozenKeys[frozenKeys.length - 1];
+
+    /* ── Largura mínima da tabela (evita colapso de colunas e garante scroll) ── */
+    const minTableWidth = allCols.reduce((sum, c) => sum + (c.w || 70), 0);
+
+    /* ── Filtros ativos desta entType ── */
+    const activeFilters = (colFilters[entType]||{});
+    const hasFilter = key => activeFilters[key] && activeFilters[key].size > 0;
+    const toggleFilter = (key, val) => {
+      const cur = new Set(activeFilters[key]||[]);
+      if(cur.has(val)) cur.delete(val); else cur.add(val);
+      setColFilters(f=>({...f,[entType]:{...activeFilters,[key]:cur}}));
+    };
+    const clearFilter = key => setColFilters(f=>({...f,[entType]:{...activeFilters,[key]:new Set()}}));
+
+    /* ── Ordenação + Filtro ── */
+    let processed = [...rows];
+    Object.entries(activeFilters).forEach(([key,vals])=>{
+      if(!vals||vals.size===0) return;
+      processed = processed.filter(row=>{
+        const v = String(row[key]||'');
+        return vals.has(v);
+      });
+    });
+    if(sortInfo.k) processed = processed.sort((a,b)=>{
+      const av=String(a[sortInfo.k]||''), bv=String(b[sortInfo.k]||'');
+      return sortInfo.d * av.localeCompare(bv,'pt-BR');
+    });
+    const finalRows = processed;
+
+    /* ── Valores únicos por coluna (para o dropdown de filtro) ── */
+    const uniqueVals = key => {
+      const set = new Set();
+      rows.forEach(r=>{ const v=String(r[key]||''); if(v) set.add(v); });
+      return [...set].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+    };
+
+    /* ── Célula extra ── */
+    const commitCell = (rowKey,colId,val)=>{
+      if(!entType) return;
+      const next={...xVals,[entType]:{...(xVals[entType]||{}),[rowKey]:{...((xVals[entType]||{})[rowKey]||{}),[colId]:val}}};
+      saveXVals(next); setEditCell(null);
+    };
+    const removeXCol = colId=>{
+      if(!entType) return;
+      saveXCols({...xCols,[entType]:(xCols[entType]||[]).filter(c=>c.id!==colId)});
+    };
+
+    /* ── Resumo de filtros ativos ── */
+    const totalFiltered = Object.values(activeFilters).filter(s=>s&&s.size>0).length;
+
+    return (
+      <div style={{marginBottom:18}}>
+        {/* CSS scrollbar — injetado uma vez via style tag */}
+        <style>{`
+          .nappra-tbl-scroll::-webkit-scrollbar{width:6px;height:10px}
+          .nappra-tbl-scroll::-webkit-scrollbar-track{background:#f0e8e0;border-radius:6px}
+          .nappra-tbl-scroll::-webkit-scrollbar-thumb{background:#7B1E2E;border-radius:6px;border:2px solid #f0e8e0}
+          .nappra-tbl-scroll::-webkit-scrollbar-thumb:hover{background:#5a1520}
+          .nappra-tbl-scroll::-webkit-scrollbar-corner{background:#f0e8e0}
+          .nappra-tbl-scroll{scrollbar-width:thin;scrollbar-color:#7B1E2E #f0e8e0}
+        `}</style>
+
+        {/* ── Wrapper com scrollbar customizada — scroll H+V, header sticky ── */}
+        <div className="nappra-tbl-scroll" style={{overflowX:"auto",overflowY:"auto",maxHeight:"564px",border:`1px solid ${P.bordOut}`,borderRadius:6,boxShadow:"0 2px 8px rgba(123,30,46,.10)",position:"relative"}}>
+          <table style={{width:"100%",minWidth:minTableWidth,borderCollapse:"separate",borderSpacing:0,fontSize:11,fontFamily:"'Plus Jakarta Sans',Arial,sans-serif",tableLayout:"auto"}}>
+            <thead>
+              {/* Linha 1: rótulos + botão de sort */}
+              <tr>
+                {allCols.map(c=>{
+                  const isSort=sortInfo.k===c.key, isExtra=c._extra, isFilt=hasFilter(c.key);
+                  const isFilterOpen=filterOpen&&filterOpen.entType===entType&&filterOpen.colKey===c.key;
+                  return (
+                    <th key={c.key} style={{
+                      padding:"0", textAlign:"left", fontSize:9, fontWeight:800,
+                      textTransform:"uppercase", letterSpacing:".07em", whiteSpace:"nowrap",
+                      userSelect:"none", width:c.w||undefined, minWidth:c.w||70,
+                      background:isExtra?P.xHdr:isFilt?P.filterHdr:isSort?P.hdrAct:P.hdr,
+                      color:isSort?P.sortIco:P.hdrTxt,
+                      borderRight: c.key===lastFrozenKey ? `2px solid rgba(192,202,215,.55)` : `1px solid rgba(255,255,255,.12)`,
+                      borderBottom:`2px solid ${P.bordOut}`,
+                      position:"sticky", top:0, zIndex: frozenLeft[c.key]!==undefined ? 30 : 20,
+                      ...(frozenLeft[c.key]!==undefined ? {left:frozenLeft[c.key]} : {}),
+                    }}>
+                      {/* Célula header com duas zonas: label+sort | filtro */}
+                      <div style={{display:"flex",alignItems:"stretch",height:"100%"}}>
+                        {/* Zona label + sort */}
+                        <div onClick={(isExtra||c.noFilter)?undefined:()=>setSortInfo(s=>({k:c.key,d:s.k===c.key?-s.d:1}))}
+                          style={{flex:1,display:"flex",alignItems:"center",justifyContent:"space-between",gap:3,padding:"8px 6px 8px 10px",cursor:(isExtra||c.noFilter)?"default":"pointer"}}>
+                          <span style={{display:"flex",alignItems:"center",gap:4}}>
+                            {c.label}
+                            {c.geoAuto&&<span title="Preenchimento automático via geocodificação do endereço" style={{display:"inline-flex",alignItems:"center",background:"rgba(22,163,74,.25)",borderRadius:3,padding:"1px 3px",fontSize:8,fontWeight:700,color:"#86efac",letterSpacing:".04em",flexShrink:0}}>
+                              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#86efac" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:2}}><circle cx="12" cy="10" r="3"/><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg>
+                              AUTO
+                            </span>}
+                          </span>
+                          <div style={{display:"flex",alignItems:"center",gap:2,flexShrink:0}}>
+                            {isExtra&&<span title="Remover" onClick={e=>{e.stopPropagation();if(window.confirm(`Remover coluna "${c.label}"?`))removeXCol(c.key);}} style={{cursor:"pointer",fontSize:9,color:"#fca5a5",opacity:.7}}>✕</span>}
+                            {!isExtra&&!c.noFilter&&isSort&&<span style={{fontSize:9,color:P.sortIco}}>{sortInfo.d>0?'▲':'▼'}</span>}
+                            {!isExtra&&!c.noFilter&&!isSort&&c.label&&<span style={{fontSize:7,color:"rgba(255,255,255,.3)"}}>⇅</span>}
+                          </div>
+                        </div>
+                        {/* Botão funil de filtro */}
+                        {!isExtra&&c.label&&!c.noFilter&&(
+                          <div
+                            title={isFilt?"Filtro ativo — clique para editar":"Filtrar por esta coluna"}
+                            onClick={e=>{e.stopPropagation();setFilterOpen(isFilterOpen?null:{entType,colKey:c.key});}}
+                            style={{
+                              width:22,display:"flex",alignItems:"center",justifyContent:"center",
+                              cursor:"pointer",flexShrink:0,
+                              background:isFilt?"rgba(212,160,23,.25)":isFilterOpen?"rgba(255,255,255,.12)":"rgba(255,255,255,.05)",
+                              borderLeft:"1px solid rgba(255,255,255,.1)",
+                              transition:"background .15s",
+                            }}>
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill={isFilt?P.sortIco:"rgba(255,255,255,.5)"} stroke="none">
+                              <path d="M3 4h18l-7 8v7l-4-2V12z"/>
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+                      {/* Dropdown de filtro */}
+                      {isFilterOpen&&(
+                        <div style={{
+                          position:"absolute",top:"100%",left:0,zIndex:500,
+                          background:"#fff",border:`1px solid ${P.bordOut}`,
+                          borderRadius:"0 0 6px 6px",
+                          boxShadow:"0 6px 20px rgba(0,0,0,.18)",
+                          minWidth:180,maxWidth:260,maxHeight:260,
+                          overflowY:"auto",padding:"6px 0",
+                        }} onClick={e=>e.stopPropagation()}>
+                          {/* Header do dropdown */}
+                          <div style={{padding:"5px 12px 8px",borderBottom:`1px solid ${P.bord}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                            <span style={{fontSize:9,fontWeight:800,textTransform:"uppercase",letterSpacing:".06em",color:P.hdr}}>Filtrar: {c.label}</span>
+                            {isFilt&&<span onClick={()=>clearFilter(c.key)} style={{fontSize:9,color:"#b91c1c",cursor:"pointer",fontWeight:700}}>limpar</span>}
+                          </div>
+                          {/* Opções */}
+                          {uniqueVals(c.key).length===0
+                            ? <div style={{padding:"10px 12px",fontSize:10,color:P.muted,fontStyle:"italic"}}>Sem valores</div>
+                            : uniqueVals(c.key).map(v=>{
+                                const checked=(activeFilters[c.key]||new Set()).has(v);
+                                return (
+                                  <label key={v} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 12px",cursor:"pointer",background:checked?"#fdf6f0":"transparent",transition:"background .1s"}}>
+                                    <input type="checkbox" checked={checked} onChange={()=>toggleFilter(c.key,v)}
+                                      style={{accentColor:P.hdr,width:13,height:13,flexShrink:0}}/>
+                                    <span style={{fontSize:11,color:P.txt,userSelect:"none"}}>{v||'(vazio)'}</span>
+                                  </label>
+                                );
+                              })
+                          }
+                        </div>
+                      )}
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {finalRows.length===0&&(
+                <tr><td colSpan={allCols.length} style={{padding:"36px 20px",textAlign:"center",color:P.muted,fontStyle:"italic",background:P.row1,fontSize:12}}>
+                  {rows.length===0?"Nenhum registro cadastrado. Clique em \"Adicionar Entidade\" para começar.":"Nenhum registro corresponde aos filtros aplicados."}
+                </td></tr>
+              )}
+              {finalRows.map((row,i)=>{
+                const rowKey=row._id||row.cpf||row.cnpj||row.nr_inscricao||row.placa||String(i);
+                const bg=i%2===0?P.row1:P.row2;
+                return (
+                  <tr key={i} style={{background:bg,transition:"background .07s"}}
+                    onMouseEnter={e=>{e.currentTarget.style.background=P.hover;}}
+                    onMouseLeave={e=>{e.currentTarget.style.background=bg;}}>
+                    {allCols.map(c=>{
+                      if(c._extra){
+                        const isEd=editCell&&editCell.entType===entType&&editCell.rowKey===rowKey&&editCell.colId===c.key;
+                        const sv=((xVals[entType]||{})[rowKey]||{})[c.key]||'';
+                        return (
+                          <td key={c.key} onClick={()=>{if(!isEd)setEditCell({entType,rowKey,colId:c.key,val:sv});}}
+                            style={{padding:isEd?"0":"6px 10px",verticalAlign:"middle",borderRight: c.key===lastFrozenKey?`2px solid rgba(192,202,215,.45)`:`1px solid ${P.bord}`,borderBottom:`1px solid ${P.bord}`,background:isEd?P.xEdit:P.xCell,minWidth:140,cursor:"text",whiteSpace:"nowrap",overflow:"hidden",maxWidth:200,textOverflow:"ellipsis",...(frozenLeft[c.key]!==undefined?{position:"sticky",left:frozenLeft[c.key],zIndex:5,background:i%2===0?P.row1:P.row2}:{})}}>
+                            {isEd
+                              ? <input autoFocus value={editCell.val}
+                                  onChange={e=>setEditCell(ec=>({...ec,val:e.target.value}))}
+                                  onBlur={()=>commitCell(rowKey,c.key,editCell.val)}
+                                  onKeyDown={e=>{if(e.key==='Enter')commitCell(rowKey,c.key,editCell.val);if(e.key==='Escape')setEditCell(null);}}
+                                  style={{width:"100%",border:"none",outline:"none",background:"transparent",padding:"6px 10px",fontSize:11,fontFamily:"inherit",color:P.txt,boxSizing:"border-box"}}/>
+                              : <span style={{color:sv?P.txt:P.muted,fontSize:11,display:"block",minHeight:18,userSelect:"text"}}>
+                                  {sv||<span style={{fontStyle:"italic",fontSize:10}}>— clique para editar</span>}
+                                </span>
+                            }
+                          </td>
+                        );
+                      }
+                      const isFrz = frozenLeft[c.key]!==undefined;
+                      const frzBg = isFrz ? (i%2===0 ? P.row1 : P.row2) : undefined;
+                      return (
+                        <td key={c.key} style={{padding:"6px 10px",color:P.txt,verticalAlign:"middle",borderRight: c.key===lastFrozenKey?`2px solid rgba(192,202,215,.45)`:`1px solid ${P.bord}`,borderBottom:`1px solid ${P.bord}`,fontSize:11,userSelect:"text",cursor:"text",whiteSpace:"nowrap",overflow:"hidden",maxWidth:c.w||200,textOverflow:"ellipsis",background:frzBg||"inherit",...(isFrz?{position:"sticky",left:frozenLeft[c.key],zIndex:4}:{})}}>
+                          {c.render?c.render(row,i):<span style={{color:row[c.key]?P.txt:P.muted}} translate="no">{row[c.key]||'—'}</span>}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* ── Rodapé ── */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 10px",borderTop:`1px solid ${P.bord}`,background:P.foot,borderRadius:"0 0 6px 6px",fontSize:10,color:"#6b4c3b"}}>
+          <span style={{fontWeight:700,color:P.hdr}}>
+            {finalRows.length} registro{finalRows.length!==1?'s':''}
+            {finalRows.length!==rows.length&&<span style={{color:"#c2410c",marginLeft:4}}>de {rows.length}</span>}
+            {totalFiltered>0&&<button onClick={()=>setColFilters(f=>({...f,[entType]:{}}))} style={{marginLeft:8,fontSize:9,fontWeight:700,padding:"1px 7px",borderRadius:4,border:"1px solid #fca5a5",background:"#fff1f2",color:"#b91c1c",cursor:"pointer"}}>✕ limpar {totalFiltered} filtro{totalFiltered!==1?'s':''}</button>}
+          </span>
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <span style={{color:"#9ca3af"}}>▲▼ ordenar · ▾ filtrar{extras.length>0?` · ${extras.length} col. extra`:""}</span>
+            {entType&&<button onClick={()=>setAddColModal({entType,name:'',afterKey:allCols.length>0?allCols[allCols.length-1].key:''})} style={{display:"flex",alignItems:"center",gap:4,padding:"3px 10px",background:P.hdr,color:P.hdrTxt,border:"none",borderRadius:4,fontSize:10,fontWeight:700,cursor:"pointer"}}>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Adicionar Coluna
+            </button>}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  /* ── Modal: Adicionar Coluna Extra ── */
+  const renderAddColModal = () => {
+    if (!addColModal) return null;
+    const { entType: et, name, afterKey } = addColModal;
+    /* colunas disponíveis como âncora de posição */
+    const anchorCols = (() => {
+      switch(et) {
+        case 'pf': return [{key:'_inicio',label:'— Início da tabela'},...[{key:'classificacao',label:'Classificação'},{key:'nome',label:'Nome'},{key:'cpf',label:'CPF'},{key:'rg',label:'RG'},{key:'vinculo',label:'Vínculo'},{key:'profissao',label:'Profissão'},{key:'resumo',label:'Resumo'}]];
+        case 'pj': return [{key:'_inicio',label:'— Início da tabela'},...[{key:'classificacao',label:'Classificação'},{key:'razao',label:'Razão Social'},{key:'cnpj',label:'CNPJ'},{key:'vinculo',label:'Vínculo'},{key:'municipio',label:'Município'},{key:'resumo',label:'Resumo'}]];
+        case 'imovel': return [{key:'_inicio',label:'— Início da tabela'},...[{key:'proprietario',label:'Proprietário'},{key:'tipo',label:'Tipo'},{key:'logradouro',label:'Logradouro'},{key:'municipio',label:'Município'},{key:'nr_matricula',label:'Matrícula'},{key:'valor_estimado',label:'Valor Est.'},{key:'resumo',label:'Resumo'}]];
+        case 'veiculo': return [{key:'_inicio',label:'— Início da tabela'},...[{key:'proprietario',label:'Proprietário'},{key:'placa',label:'Placa'},{key:'marca_modelo',label:'Marca/Modelo'},{key:'ano',label:'Ano'},{key:'valor_estimado',label:'Valor Est.'},{key:'resumo',label:'Resumo'}]];
+        case 'aeronave': return [{key:'_inicio',label:'— Início da tabela'},...[{key:'proprietario',label:'Proprietário'},{key:'nr_inscricao',label:'Nº Inscrição'},{key:'marca',label:'Marca'},{key:'modelo',label:'Modelo'},{key:'valor_estimado',label:'Valor Est.'},{key:'resumo',label:'Resumo'}]];
+        case 'embarcacao': return [{key:'_inicio',label:'— Início da tabela'},...[{key:'proprietario',label:'Proprietário'},{key:'nr_inscricao',label:'Nº Inscrição'},{key:'nome',label:'Nome'},{key:'tipo',label:'Tipo'},{key:'valor_estimado',label:'Valor Est.'},{key:'resumo',label:'Resumo'}]];
+        default: return [{key:'_inicio',label:'— Início da tabela'}];
+      }
+    })();
+    const canAdd = name.trim().length > 0;
+    const doAdd = () => {
+      if (!canAdd) return;
+      const newId = 'xcol_'+Date.now();
+      const next = { ...xCols, [et]: [...(xCols[et]||[]), { id:newId, label:name.trim().toUpperCase(), afterKey: afterKey==='_inicio' ? null : afterKey, w:160 }] };
+      saveXCols(next);
+      setAddColModal(null);
+    };
+    return (
+      <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setAddColModal(null)}>
+        <div style={{background:"#fff",borderRadius:10,width:420,boxShadow:"0 8px 40px rgba(0,0,0,.22)",overflow:"hidden"}} onClick={e=>e.stopPropagation()}>
+          {/* Header */}
+          <div style={{background:"#7B1E2E",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f0c040" strokeWidth="2.2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span style={{color:"#fff",fontWeight:800,fontSize:13}}>Adicionar Coluna</span>
+            </div>
+            <span onClick={()=>setAddColModal(null)} style={{color:"rgba(255,255,255,.6)",cursor:"pointer",fontSize:18,lineHeight:1}}>×</span>
+          </div>
+          {/* Body */}
+          <div style={{padding:"20px 24px",display:"flex",flexDirection:"column",gap:16}}>
+            <div>
+              <label style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:".07em",color:"#475569",display:"block",marginBottom:5}}>Nome da Coluna *</label>
+              <input
+                autoFocus
+                value={name}
+                onChange={e=>setAddColModal(m=>({...m, name:e.target.value.toUpperCase()}))}
+                onKeyDown={e=>{ if(e.key==='Enter') doAdd(); if(e.key==='Escape') setAddColModal(null); }}
+                placeholder="Ex: OBSERVAÇÃO DE CAMPO"
+                style={{width:"100%",boxSizing:"border-box",padding:"9px 12px",border:"1.5px solid #cbd5e1",borderRadius:6,fontSize:12,fontFamily:"inherit",outline:"none",color:"#111"}}
+              />
+            </div>
+            <div>
+              <label style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:".07em",color:"#475569",display:"block",marginBottom:5}}>Inserir após a coluna</label>
+              <select
+                value={afterKey}
+                onChange={e=>setAddColModal(m=>({...m, afterKey:e.target.value}))}
+                style={{width:"100%",boxSizing:"border-box",padding:"9px 12px",border:"1.5px solid #cbd5e1",borderRadius:6,fontSize:12,fontFamily:"inherit",background:"#fff",color:"#111",outline:"none"}}>
+                {anchorCols.map(a=>(
+                  <option key={a.key} value={a.key}>{a.label}</option>
+                ))}
+                {(xCols[et]||[]).map(xc=>(
+                  <option key={xc.id} value={xc.id}>{xc.label} (extra)</option>
+                ))}
+              </select>
+              <div style={{marginTop:5,fontSize:10,color:"#94a3b8"}}>A nova coluna será inserida imediatamente após a coluna selecionada.</div>
+            </div>
+          </div>
+          {/* Footer */}
+          <div style={{padding:"12px 24px",borderTop:"1px solid #e2e8f0",display:"flex",justifyContent:"flex-end",gap:10,background:"#f8fafc"}}>
+            <button onClick={()=>setAddColModal(null)} style={{padding:"8px 18px",borderRadius:6,border:"1px solid #cbd5e1",background:"#fff",color:"#475569",fontSize:12,fontWeight:600,cursor:"pointer"}}>Cancelar</button>
+            <button onClick={doAdd} disabled={!canAdd} style={{padding:"8px 20px",borderRadius:6,border:"none",background:canAdd?"#7B1E2E":"#94a3b8",color:"#fff",fontSize:12,fontWeight:700,cursor:canAdd?"pointer":"not-allowed",transition:"background .15s"}}>
+              Adicionar Coluna
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderSubTabs = () => {
+    /* ícones SVG por tipo de aba */
+    const TabIcon = ({id, cor, size=13}) => {
+      const st = {fill:"none",stroke:cor,strokeWidth:"1.8",strokeLinecap:"round",strokeLinejoin:"round"};
+      const icons = {
+        pf:         <g><circle cx="12" cy="8" r="3.5"/><path d="M4 20c0-3.9 3.6-7 8-7s8 3.1 8 7"/></g>,
+        pj:         <g><rect x="2" y="9" width="20" height="12" rx="1.5"/><path d="M16 9V6a2 2 0 00-2-2h-4a2 2 0 00-2 2v3"/></g>,
+        imovel:     <g><path d="M3 10.5L12 3l9 7.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1z"/><path d="M9 21V13h6v8"/></g>,
+        veiculo:    <g><path d="M5 11l1.5-4.5h11L19 11"/><rect x="2" y="11" width="20" height="7" rx="1.5"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></g>,
+        aeronave:   <g><path d="M21 16v-2l-8-5V4a1.5 1.5 0 00-3 0v5l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></g>,
+        embarcacao: <g><path d="M3 17a9.9 9.9 0 0018 0"/><path d="M5 17l-2-7h18l-2 7"/><path d="M12 4v6"/><path d="M8 7l4-3 4 3"/></g>,
+        vinculo:    <g><circle cx="8" cy="12" r="3"/><circle cx="16" cy="8" r="3"/><circle cx="16" cy="16" r="3"/><line x1="10.6" y1="10.6" x2="13.4" y2="9.4"/><line x1="10.6" y1="13.4" x2="13.4" y2="14.6"/></g>,
+        rif:        <g><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/><circle cx="9" cy="12" r="1" fill={cor} stroke="none"/><circle cx="15" cy="12" r="1" fill={cor} stroke="none"/></g>,
+        dashboard:  <g><rect x="3" y="13" width="5" height="8" rx="1"/><rect x="10" y="8" width="5" height="13" rx="1"/><rect x="17" y="3" width="5" height="18" rx="1"/><polyline points="5.5 13 10.5 8 15.5 8" strokeDasharray="2 2"/></g>,
+        mapa:       <g><circle cx="12" cy="10" r="3"/><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></g>,
+      };
+      return <svg viewBox="0 0 24 24" width={size} height={size} {...st}>{icons[id]||null}</svg>;
+    };
+
+    /* badge de contagem por aba */
+    const countFor = id => {
+      const loc = entLocais || {};
+      const counts = {
+        pf:          (det.pf||[]).length + (loc.pf||[]).length,
+        pj:          (det.pj||[]).length + (loc.pj||[]).length,
+        imoveis:     (det.imoveis||det.bensImoveis||[]).length + (loc.imovel||[]).length,
+        veic:        (det.veiculos||[]).length + (loc.veiculo||[]).length,
+        aeronaves:   (det.aeronaves||[]).length + (loc.aeronave||[]).length,
+        embarcacoes: (det.embarcacoes||[]).length + (loc.embarcacao||[]).length,
+        vinculos:    0,
+      };
+      return counts[id]||0;
+    };
+
+    const hasView = ["pf","pj","imoveis","veic","aeronaves","embarcacoes"].includes(subAba);
+    const acc = ilhaAcc[ilhaSel];
+
+    return (
+      <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:8}}>
+        {/* Barra de abas — flex:1 preenche o espaço, scroll interno invisível */}
+        <div style={{flex:1, minWidth:0, background:T.subTabBg, borderRadius:8, padding:"4px 4px", border:`1px solid ${T.subTabBorder}`, display:"flex", gap:3, alignItems:"center", overflowX:"auto", overflowY:"hidden"}}>
+          <style>{`div.nappra-st::-webkit-scrollbar{display:none}`}</style>
+          {(SUB_ABAS[ilhaSel]||[]).map(ab=>{
+            const ativo = subAba===ab.id;
+            const cnt   = countFor(ab.id);
+            return (
+              <button key={ab.id}
+                onClick={()=>{ setSub(ab.id); setPfView(null); setPjView(null); setPrView(null); setSortInfo({k:null,d:1}); setColFilters({}); if(ab.id==="imoveis") setViewModes(prev=>({...prev,imoveis:"tabela"})); }}
+                style={{
+                  display:"flex", alignItems:"center", gap:5, flexShrink:0,
+                  padding:"6px 12px", borderRadius:6, fontSize:11, fontWeight:700,
+                  cursor:"pointer", border:"none", transition:"all .18s",
+                  background: ativo ? acc : "transparent",
+                  color: ativo ? "#fff" : T.textSec,
+                  letterSpacing:".01em",
+                }}>
+                {ab.icon && <TabIcon id={ab.icon} cor={ativo?"#fff":T.textMuted} size={12}/>}
+                {ab.l}
+                {cnt > 0 && (
+                  <span style={{
+                    fontSize:9, fontWeight:800, lineHeight:1,
+                    padding:"2px 5px", borderRadius:10,
+                    background: ativo ? "rgba(255,255,255,.22)" : T.tagBg,
+                    color: ativo ? "#fff" : T.textMuted,
+                    minWidth:16, textAlign:"center",
+                  }}>{cnt}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Toggle FORA da barra — irmão no flex, nunca some */}
+        {hasView && (
+          <div style={{flexShrink:0, display:"flex", gap:0, borderRadius:7,
+            border:"1px solid rgba(200,151,58,.45)", overflow:"hidden"}}>
+            {[{id:"cards",label:"⊞  Cards"},{id:"tabela",label:"≡  Tabela"},...(subAba==="imoveis"?[{id:"mapa",label:"🗺  Mapa"}]:[])].map(v=>(
+              <button key={v.id} onClick={()=>setView(v.id)} style={{
+                padding:"5px 13px", fontSize:11, fontWeight:700, cursor:"pointer",
+                border:"none", borderRight:"1px solid rgba(200,151,58,.25)",
+                background: viewMode===v.id ? acc : "rgba(212,160,23,.12)",
+                color: viewMode===v.id ? "#fff" : "#c8973a",
+                transition:"all .2s", whiteSpace:"nowrap",
+              }}>{v.label}</button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ── ÁREA DE CONTEÚDO PF
+  const renderPF = () => {
+    if (pfView !== null) {
+      const p = det.pf[pfView];
+      return (
+        <div>
+          <BackBtn onClick={()=>setPfView(null)} label="Lista de Pessoas Físicas" />
+          <div style={s.card}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16 }}>
+              <div>
+                <div style={s.label}>Pessoa Física</div>
+                <div style={{ fontSize:18, fontWeight:800, color:T.textMain }} translate="no">{p.nome}</div>
+                <div style={{ fontSize:12, color:T.textSec, marginTop:3 }} translate="no">{p.qualif} · {p.vinculo}</div>
+              </div>
+              <span style={{ ...s.tag, background:"rgba(200,151,58,.15)", color:"#c8973a", border:"1px solid rgba(200,151,58,.3)" }}>PF #{p.n}</span>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:12, marginBottom:16 }}>
+              {[["CPF",p.cpf],["Nascimento",p.nasc],["Naturalidade",p.naturalidade],["Mãe",p.mae],["Pai",p.pai]].map(([k,v])=>(
+                <div key={k} style={{ background:T.covBg, borderRadius:7, padding:"8px 12px", border:`1px solid ${T.border}` }}>
+                  <div style={{ fontSize:9, color:T.textMuted, fontWeight:700, letterSpacing:".06em", textTransform:"uppercase", marginBottom:3 }}>{k}</div>
+                  <div style={{ fontSize:12, color:T.textMain, fontWeight:600 }} translate="no">{v||"—"}</div>
+                </div>
+              ))}
+            </div>
+            {p.obs && <div style={{ background:T.covBg, borderRadius:7, padding:"10px 14px", marginBottom:14, border:`1px solid ${T.border}` }}>
+              <div style={{ fontSize:9, color:T.textMuted, fontWeight:700, textTransform:"uppercase", letterSpacing:".06em", marginBottom:4 }}>Observações</div>
+              <div style={{ fontSize:12, color:T.textSec, lineHeight:1.6 }}>{p.obs}</div>
+            </div>}
+            <div style={s.label}>Fontes Consultadas</div>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:14 }}>
+              {[{n:"Portal Seg.",k:"ps"},{n:"Pandora",k:"pa"},{n:"SINESP",k:"si"},{n:"Receita",k:"re"},{n:"CORTEX",k:"cx"},{n:"JUCERJA",k:"ju"},{n:"CREDLINK",k:"cl"},{n:"ONR",k:"on"},{n:"OSINT",k:"os"},{n:"SOCMINT",k:"sm"},{n:"RCPJ",k:"rc"},{n:"CBMERJ",k:"cb"}]
+                .map(f=><FonteBadge key={f.k} ok={p.fontes[f.k]} nome={f.n}/>)}
+            </div>
+            {p.enderecos?.length>0 && <>
+              <div style={s.label}>Endereços</div>
+              <div style={{ marginBottom:14 }}>
+                {p.enderecos.map((e,i)=><div key={i} style={{ fontSize:12, color:T.textSec, padding:"5px 0", borderBottom:`1px solid ${T.border}` }} translate="no">{e}</div>)}
+              </div>
+            </>}
+            {p.processos?.length>0 && <>
+              <div style={s.label}>Processos Encontrados</div>
+              <div style={{ marginBottom:14 }}>
+                {p.processos.map((pr,i)=><div key={i} style={{ fontSize:11, color:T.textSec, padding:"5px 0", borderBottom:`1px solid ${T.border}` }} translate="no">{pr}</div>)}
+              </div>
+            </>}
+          </div>
+        </div>
+      );
+    }
+    /* ── Tabela PF — colunas completas da planilha ── */
+    if (viewMode==="tabela") {
+      const pfRows = [
+        ...det.pf.map((p,i)=>({...p, _n:i+1, _source:'mock', profissao:p.qualif, resumo:p.obs})),
+        ...(entLocais.pf||[]).map((p,i)=>({...p, _n:det.pf.length+i+1, _source:'local'})),
+      ];
+      const acc = ilhaAcc["minera"];
+      const pfCols = [
+        {key:'_chk',            label:'Sel.',          w:36,  noFilter:true, frozen:true, render:()=><input type="checkbox" style={{accentColor:'#7B1E2E',width:13,height:13,cursor:'pointer'}}/>},
+        {key:'_n',              label:'Nº',            w:38,  noFilter:true, frozen:true, render:(_,i)=>nCell(i)},
+        {key:'_av',             label:'Foto',          w:50,  frozen:true,   render:row=>avCell(row)},
+        {key:'classificacao',   label:'Classificação', w:170, frozen:true,   render:row=>txtC(row.classificacao)},
+        {key:'nome',            label:'Nome Completo', w:220, frozen:true,   render:row=>txtC(row.nome,true)},
+        {key:'cpf',             label:'CPF',           w:145, frozen:true,   render:row=>txtC(row.cpf)},
+        {key:'rg',              label:'RG',            w:110, render:row=>txtC(row.rg)},
+        {key:'sexo',            label:'Sexo',          w:115, render:row=>sexoBdg(row.sexo)},
+        {key:'nasc',            label:'Nascimento',    w:115, render:row=>txtC(row.nasc)},
+        {key:'nacionalidade',   label:'Nacionalidade', w:120, render:row=>txtC(row.nacionalidade)},
+        {key:'naturalidade',    label:'Naturalidade',  w:150, render:row=>txtC(row.naturalidade)},
+        {key:'passaporte',      label:'Passaporte',    w:115, render:row=>txtC(row.passaporte)},
+        {key:'vinculo',         label:'Vínculo PF',    w:170, render:row=>vinculoBdg(row.vinculo)},
+        {key:'direcao',         label:'Direção',       w:95,  render:row=>dirBdg(row.direcao)},
+        {key:'profissao',       label:'Profissão',     w:150, render:row=>txtC(row.profissao||row.qualif)},
+        {key:'alvo_central',    label:'Alvo Central',  w:170, render:row=>txtC(row.alvo_central)},
+        {key:'cpf_alvo',        label:'CPF Alvo Cent.',w:145, render:row=>txtC(row.cpf_alvo)},
+        {key:'pai',             label:'PAI',           w:180, render:row=>txtC(row.pai)},
+        {key:'cpf_pai',         label:'CPF PAI',       w:145, render:row=>txtC(row.cpf_pai)},
+        {key:'mae',             label:'MÃE',           w:180, render:row=>txtC(row.mae)},
+        {key:'cpf_mae',         label:'CPF MÃE',       w:145, render:row=>txtC(row.cpf_mae)},
+        {key:'servidor_publico',label:'Serv. Público', w:115, render:row=>booBdg(row.servidor_publico)},
+        {key:'funcao_publica',  label:'Função Pública',w:160, render:row=>txtC(row.funcao_publica)},
+        {key:'nomeacao',        label:'Nomeação',      w:115, render:row=>txtC(row.nomeacao)},
+        {key:'exoneracao',      label:'Exoneração',    w:115, render:row=>txtC(row.exoneracao)},
+        {key:'resumo',          label:'Resumo',        w:400, render:row=>txtC(row.resumo||row.obs)},
+        ...FONTES_POR_ENT.pf.map(f=>({key:'_f_'+f.k, label:f.n, w:80, render:row=>fntCell(row,f.k)})),
+        {key:'_src', label:'', w:72, render:row=>locBdg(row)},
+      ];
+      return (
+        <div>
+          {renderTabela(pfCols, pfRows, null, null, 'pf')}
+        </div>
+      );
+    }
+
+    return (
+      <div>
+        <div style={s.label}>Pessoas Físicas ({det.pf.length})</div>
+        {det.pf.map((p,i)=>(
+          <div key={i} onClick={()=>setPfView(i)} style={{
+            ...s.card, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"space-between",
+            transition:"border-color .2s", borderColor: T.border,
+          }}
+          onMouseEnter={e=>e.currentTarget.style.borderColor=ilhaAcc["minera"]}
+          onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}>
+            <div>
+              <div style={{ fontSize:13, fontWeight:700, color:T.textMain }} translate="no">{p.nome}</div>
+              <div style={{ fontSize:11, color:T.textSec, marginTop:2 }} translate="no">{p.qualif} · {p.vinculo}</div>
+              <div style={{ fontSize:11, color:T.textMuted, marginTop:2 }} translate="no">CPF: {p.cpf}</div>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:6 }}>
+              <span style={{ fontSize:18, color:T.textMuted }}>›</span>
+              <div style={{ display:"flex", gap:3, flexWrap:"wrap", justifyContent:"flex-end" }}>
+                {Object.entries(p.fontes).filter(([,v])=>v).slice(0,4).map(([k])=>
+                  <span key={k} style={{ fontSize:8, padding:"1px 5px", borderRadius:3, background:"rgba(74,222,128,.12)", color:"#4ade80", fontWeight:700 }} translate="no">{k.toUpperCase()}</span>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // ── ÁREA DE CONTEÚDO PJ
+  const renderPJ = () => {
+    if (prView !== null && pjView !== null) {
+      const empresa = det.pj[pjView];
+      const pr = empresa.pessoas[prView];
+      const isPF = pfCpfs.has(pr.cpf);
+      const pfIdx = isPF ? det.pf.findIndex(p=>p.cpf===pr.cpf) : -1;
+      return (
+        <div>
+          <BackBtn onClick={()=>setPrView(null)} label={`Pessoas de ${empresa.razao.split(" ").slice(0,3).join(" ")}...`} />
+          <div style={s.card}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
+              <div>
+                <div style={s.label}>Pessoa Relacionada</div>
+                <div style={{ fontSize:16, fontWeight:800, color:T.textMain }} translate="no">{pr.nome}</div>
+                <div style={{ fontSize:12, color:T.textSec, marginTop:3 }}>{pr.papel} · Entrada: {pr.entrada} · Saída: {pr.saida}</div>
+              </div>
+              <div style={{ display:"flex", gap:6 }}>
+                {isPF && <span style={{ fontSize:10, fontWeight:800, padding:"3px 8px", borderRadius:5, background:"rgba(74,222,128,.15)", color:"#4ade80", border:"1px solid rgba(74,222,128,.3)" }}>PF ✓</span>}
+                <span style={{ ...s.tag }}>CPF {pr.cpf}</span>
+              </div>
+            </div>
+            <div style={{ background:T.covBg, borderRadius:7, padding:"10px 14px", border:`1px solid ${T.border}`, marginBottom:14 }}>
+              <div style={{ fontSize:11, color:T.textSec }}>Vinculado à empresa:</div>
+              <div style={{ fontSize:12, fontWeight:700, color:T.textMain, marginTop:3 }} translate="no">{empresa.razao}</div>
+              <div style={{ fontSize:11, color:T.textMuted, marginTop:2 }} translate="no">CNPJ {empresa.cnpj} · {empresa.situacao}</div>
+            </div>
+            {isPF && (
+              <button onClick={()=>{ setSub("pf"); setPfView(pfIdx); setPjView(null); setPrView(null); }} style={{
+                padding:"8px 16px", borderRadius:7, fontSize:12, fontWeight:700, cursor:"pointer",
+                background:"rgba(74,222,128,.12)", border:"1px solid rgba(74,222,128,.3)", color:"#4ade80",
+              }}>Ver ficha completa em Pessoas Físicas →</button>
+            )}
+            {!isPF && <div style={{ fontSize:12, color:T.textMuted, fontStyle:"italic" }}>Pessoa não encontrada no módulo de PF deste caso.</div>}
+          </div>
+        </div>
+      );
+    }
+
+    if (pjView !== null) {
+      const empresa = det.pj[pjView];
+      return (
+        <div>
+          <BackBtn onClick={()=>{ setPjView(null); setPrView(null); }} label="Lista de Empresas" />
+          <div style={s.card}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
+              <div>
+                <div style={s.label}>Pessoa Jurídica</div>
+                <div style={{ fontSize:16, fontWeight:800, color:T.textMain }} translate="no">{empresa.razao}</div>
+                <div style={{ fontSize:12, color:T.textSec, marginTop:3 }} translate="no">{empresa.natureza} · CNPJ {empresa.cnpj}</div>
+              </div>
+              <span style={{
+                fontSize:10, fontWeight:800, padding:"3px 10px", borderRadius:5,
+                background: empresa.situacao==="Irregular"?"rgba(248,113,113,.15)":"rgba(74,222,128,.12)",
+                color: empresa.situacao==="Irregular"?"#f87171":"#4ade80",
+                border: `1px solid ${empresa.situacao==="Irregular"?"rgba(248,113,113,.3)":"rgba(74,222,128,.3)"}`,
+              }}>{empresa.situacao}</span>
+            </div>
+            {empresa.obs && <div style={{ background:T.covBg, borderRadius:7, padding:"10px 14px", marginBottom:14, border:`1px solid ${T.border}` }}>
+              <div style={{ fontSize:9, color:T.textMuted, fontWeight:700, textTransform:"uppercase", letterSpacing:".06em", marginBottom:4 }}>Informações</div>
+              <div style={{ fontSize:12, color:T.textSec, lineHeight:1.6 }}>{empresa.obs}</div>
+            </div>}
+            <div style={s.label}>Fontes Consultadas</div>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:16 }}>
+              {[{n:"Portal Seg.",k:"ps"},{n:"Pandora",k:"pa"},{n:"SINESP",k:"si"},{n:"Receita",k:"re"},{n:"CORTEX",k:"cx"},{n:"JUCERJA",k:"ju"},{n:"CREDLINK",k:"cl"},{n:"ONR",k:"on"},{n:"OSINT",k:"os"},{n:"SOCMINT",k:"sm"},{n:"RCPJ",k:"rc"},{n:"CBMERJ",k:"cb"}]
+                .map(f=><FonteBadge key={f.k} ok={empresa.fontes[f.k]} nome={f.n}/>)}
+            </div>
+            <div style={s.label}>Pessoas Relacionadas ({empresa.pessoas.length})</div>
+            {empresa.pessoas.map((pr,i)=>{
+              const isPF = pfCpfs.has(pr.cpf);
+              return (
+                <div key={i} onClick={()=>setPrView(i)} style={{
+                  ...s.card, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"space-between",
+                  marginBottom:8, padding:"10px 14px",
+                }}
+                onMouseEnter={e=>e.currentTarget.style.borderColor=ilhaAcc["minera"]}
+                onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}>
+                  <div>
+                    <div style={{ fontSize:12, fontWeight:700, color:T.textMain, display:"flex", alignItems:"center", gap:6 }}>
+                      <span translate="no">{pr.nome}</span>
+                      {isPF && <span style={{ fontSize:9, fontWeight:800, padding:"1px 6px", borderRadius:4, background:"rgba(74,222,128,.12)", color:"#4ade80", border:"1px solid rgba(74,222,128,.3)" }}>PF ✓</span>}
+                    </div>
+                    <div style={{ fontSize:11, color:T.textSec, marginTop:2 }}>{pr.papel} · Entrada: {pr.entrada} · Saída: {pr.saida}</div>
+                  </div>
+                  <span style={{ fontSize:18, color:T.textMuted }}>›</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    /* ── Tabela PJ — colunas completas da planilha ── */
+    if (viewMode==="tabela") {
+      const pjRows = [
+        ...det.pj.map((p,i)=>({...p, _n:i+1, _source:'mock', municipio:'—', logo:'', resumo:p.obs})),
+        ...(entLocais.pj||[]).map((p,i)=>({...p, _n:det.pj.length+i+1, _source:'local', pessoas:p.pessoas||[]})),
+      ];
+      const acc = ilhaAcc["minera"];
+      const pjCols = [
+        {key:'_chk',           label:'Sel.',           w:36,  noFilter:true, frozen:true, render:()=><input type="checkbox" style={{accentColor:'#7B1E2E',width:13,height:13,cursor:'pointer'}}/>},
+        {key:'_n',             label:'Nº',             w:38,  noFilter:true, frozen:true, render:(_,i)=>nCell(i)},
+        {key:'_lg',            label:'Logo',           w:44,  frozen:true,   render:row=>lgCell(row)},
+        {key:'classificacao',  label:'Classificação',  w:170, frozen:true,   render:row=>txtC(row.classificacao)},
+        {key:'razao',          label:'Razão Social',   w:230, frozen:true,   render:row=>txtC(row.razao,true)},
+        {key:'cnpj',           label:'CNPJ',           w:165, frozen:true,   render:row=>txtC(row.cnpj)},
+        {key:'nome_fantasia',  label:'Nome Fantasia',  w:170, render:row=>txtC(row.nome_fantasia)},
+        {key:'data_abertura',  label:'Abertura',       w:110, render:row=>txtC(row.data_abertura)},
+        {key:'situacao',       label:'Situação',       w:115, render:row=>sitBdg(row.situacao)},
+        {key:'vinculo',        label:'Vínculo',        w:170, render:row=>txtC(row.vinculo)},
+        {key:'logradouro',     label:'Logradouro',     w:200, render:row=>txtC(row.logradouro)},
+        {key:'numero',         label:'Nº',             w:65,  render:row=>txtC(row.numero)},
+        {key:'complemento',    label:'Complemento',    w:115, render:row=>txtC(row.complemento)},
+        {key:'bairro',         label:'Bairro',         w:130, render:row=>txtC(row.bairro)},
+        {key:'municipio',      label:'Município',      w:135, render:row=>txtC(row.municipio)},
+        {key:'uf',             label:'UF',             w:55,  render:row=>txtC(row.uf)},
+        {key:'cep',            label:'CEP',            w:100, render:row=>txtC(row.cep)},
+        {key:'telefone',       label:'Telefone',       w:125, render:row=>txtC(row.telefone)},
+        {key:'email',          label:'E-Mail',         w:200, render:row=><span style={{color:row.email?T.textMain:T.textMuted}}>{row.email||'—'}</span>},
+        {key:'cnae_principal', label:'CNAE Principal', w:145, render:row=>txtC(row.cnae_principal)},
+        {key:'cnae_secundario',label:'CNAE Secundário',w:145, render:row=>txtC(row.cnae_secundario)},
+        {key:'capital_social', label:'Cap. Social (R$)',w:145,render:row=>curCell(row.capital_social)},
+        {key:'integralizado',  label:'Integralizado (R$)',w:145,render:row=>curCell(row.integralizado)},
+        {key:'pct_capital',    label:'% Cap.',         w:80,  render:row=>txtC(row.pct_capital)},
+        {key:'alvo_central',   label:'Alvo Central',   w:175, render:row=>txtC(row.alvo_central)},
+        {key:'cpf_alvo',       label:'CPF Alvo',       w:145, render:row=>txtC(row.cpf_alvo)},
+        {key:'orgao_publico',  label:'Órgão Público',  w:165, render:row=>txtC(row.orgao_publico)},
+        {key:'resumo',         label:'Resumo / Obs.',  w:220, render:row=>txtC(row.resumo||row.obs)},
+        ...FONTES_POR_ENT.pj.map(f=>({key:'_f_'+f.k, label:f.n, w:80, render:row=>fntCell(row,f.k)})),
+        {key:'_src', label:'', w:72, render:row=>locBdg(row)},
+      ];
+      return renderTabela(pjCols, pjRows, null, null, 'pj');
+    }
+
+    return (
+      <div>
+        <div style={s.label}>Pessoas Jurídicas ({det.pj.length})</div>
+        {det.pj.map((pj,i)=>(
+          <div key={i} onClick={()=>setPjView(i)} style={{
+            ...s.card, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"space-between",
+          }}
+          onMouseEnter={e=>e.currentTarget.style.borderColor=ilhaAcc["minera"]}
+          onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}>
+            <div>
+              <div style={{ fontSize:13, fontWeight:700, color:T.textMain }} translate="no">{pj.razao}</div>
+              <div style={{ fontSize:11, color:T.textSec, marginTop:2 }} translate="no">{pj.natureza} · CNPJ {pj.cnpj} · {pj.vinculo}</div>
+              <div style={{ fontSize:11, color:T.textMuted, marginTop:2 }}>{pj.pessoas.length} pessoa(s) vinculada(s)</div>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:6 }}>
+              <span style={{
+                fontSize:10, fontWeight:800, padding:"2px 8px", borderRadius:5,
+                background: pj.situacao==="Irregular"?"rgba(248,113,113,.15)":"rgba(74,222,128,.12)",
+                color: pj.situacao==="Irregular"?"#f87171":"#4ade80",
+              }}>{pj.situacao}</span>
+              <span style={{ fontSize:18, color:T.textMuted }}>›</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+
+  // ── ÁREA BENS IMÓVEIS
+  const renderImoveis = () => {
+    const acc = ilhaAcc["minera"];
+    const imovRows = [
+      ...det.bensImoveis.map((b,i)=>({...b, _n:i+1, _source:'mock', tipo:b.tipo||'IMÓVEL',
+        logradouro:b.logradouro||b.descricao, nr_matricula:b.nr_matricula||b.registro, proprietario:b.proprietario||b.titular, valor_estimado:b.valor_estimado||b.valor})),
+      ...(entLocais.imovel||[]).map((b,i)=>({...b, _n:det.bensImoveis.length+i+1, _source:'local'})),
+    ];
+    if (viewMode==="mapa") {
+      const iconClrTipo = t => { const s=(t||'').toLowerCase(); return s.includes('rural')?'#2d6a4f':s.includes('comer')?'#1d3461':'#7B1E2E'; };
+      const totalGeo  = imovRows.filter(r=>r.lat&&r.lng).length;
+      const selCount  = imovMapSel === null ? totalGeo : imovMapSel.size;
+      // Filtra lista lateral pela busca
+      const searchLow = imovMapSearch.toLowerCase();
+      const listaFiltrada = imovRows.filter(r => !searchLow || (r.proprietario||'').toLowerCase().includes(searchLow) || (r.logradouro||'').toLowerCase().includes(searchLow) || (r.bairro||'').toLowerCase().includes(searchLow) || (r.municipio||'').toLowerCase().includes(searchLow) || (r.tipo||'').toLowerCase().includes(searchLow));
+
+      const toggleItem = n => {
+        setImovMapSel(prev => {
+          // null = todos marcados; precisamos expandir para Set completo antes de remover
+          const base = prev === null
+            ? new Set(imovRows.filter(r=>r.lat&&r.lng).map(r=>r._n))
+            : new Set(prev);
+          if (base.has(n)) { base.delete(n); } else { base.add(n); }
+          // Se voltou a ter todos, simplifica para null
+          return base.size >= totalGeo ? null : base;
+        });
+      };
+
+      const exportarKML = () => {
+        const ativos = imovMapSel === null ? imovRows.filter(r=>r.lat&&r.lng) : imovRows.filter(r=>r.lat&&r.lng&&imovMapSel.has(r._n));
+        const pl = ativos.map(r=>`<Placemark><name>${r.proprietario||'—'}</name><description><![CDATA[<b>N°:</b> ${r._n}<br/><b>Tipo:</b> ${r.tipo||'—'}<br/><b>End.:</b> ${r.logradouro||''}, ${r.numero||''} — ${r.bairro||''}, ${r.municipio||''}-${r.uf||''}]]></description><styleUrl>#t_${(r.tipo||'').toLowerCase().includes('rural')?'rural':(r.tipo||'').toLowerCase().includes('comer')?'comercial':'residencial'}</styleUrl><Point><coordinates>${r.lng},${r.lat},0</coordinates></Point></Placemark>`).join('');
+        const kml = `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>NAPPRA CI2 - Bens Imoveis</name><Style id="t_residencial"><IconStyle><color>ff2222cc</color><scale>1.1</scale><Icon><href>http://maps.google.com/mapfiles/kml/pushpin/red-pushpin.png</href></Icon></IconStyle></Style><Style id="t_comercial"><IconStyle><color>ff0099ff</color><scale>1.1</scale><Icon><href>http://maps.google.com/mapfiles/kml/pushpin/blue-pushpin.png</href></Icon></IconStyle></Style><Style id="t_rural"><IconStyle><color>ff00aa44</color><scale>1.1</scale><Icon><href>http://maps.google.com/mapfiles/kml/pushpin/grn-pushpin.png</href></Icon></IconStyle></Style>${pl}</Document></kml>`;
+        const url = URL.createObjectURL(new Blob([kml],{type:"application/vnd.google-earth.kml+xml"}));
+        const a = document.createElement('a'); a.href=url; a.download="nappra_imoveis.kml"; a.click(); URL.revokeObjectURL(url);
+      };
+
+      return (
+        <div style={{display:"flex",flexDirection:"column",gap:0,height:"calc(100vh - 308px)",minHeight:400,borderRadius:6,overflow:"hidden",border:`1px solid ${T.border}`}}>
+          {/* Toolbar superior */}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 12px",flexShrink:0,
+            background:T.cardBg2,borderBottom:`1px solid ${T.border}`}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={acc} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="10" r="3"/><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+              </svg>
+              <span style={{fontSize:11,fontWeight:700,color:T.textMain}}>
+                {selCount} de {totalGeo} imóveis no mapa
+              </span>
+              <span style={{display:"flex",alignItems:"center",gap:5,fontSize:10,color:T.textSec}}>
+                <span style={{width:7,height:7,borderRadius:"50%",background:"#7B1E2E",display:"inline-block"}}></span>Residencial
+                <span style={{width:7,height:7,borderRadius:"50%",background:"#1d3461",display:"inline-block",marginLeft:4}}></span>Comercial
+                <span style={{width:7,height:7,borderRadius:"50%",background:"#2d6a4f",display:"inline-block",marginLeft:4}}></span>Rural
+              </span>
+            </div>
+            <button onClick={exportarKML} style={{display:"flex",alignItems:"center",gap:5,padding:"4px 11px",
+              background:"#1d3461",color:"#fff",border:"none",borderRadius:5,fontSize:11,fontWeight:700,cursor:"pointer"}}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Exportar KML
+            </button>
+          </div>
+
+          {/* Corpo: painel lateral + mapa */}
+          <div style={{display:"flex",flex:1,overflow:"hidden"}}>
+
+            {/* ── Painel lateral de endereços ── */}
+            <div style={{width:272,flexShrink:0,display:"flex",flexDirection:"column",
+              background:T.cardBg,borderRight:`1px solid ${T.border}`}}>
+              {/* Cabeçalho painel */}
+              <div style={{padding:"10px 12px 8px",borderBottom:`1px solid ${T.border}`,flexShrink:0}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+                  <span style={{fontSize:11,fontWeight:800,color:T.textMain,letterSpacing:".04em",textTransform:"uppercase"}}>Endereços</span>
+                  <div style={{display:"flex",gap:4}}>
+                    <button onClick={()=>setImovMapSel(null)} style={{fontSize:10,fontWeight:700,cursor:"pointer",
+                      border:"1px solid #2d6a4f",borderRadius:4,padding:"3px 8px",background:"#2d6a4f",color:"#fff"}}>
+                      ✓ Todos
+                    </button>
+                    <button onClick={()=>setImovMapSel(new Set())} style={{fontSize:10,fontWeight:700,cursor:"pointer",
+                      border:"1px solid #7B1E2E",borderRadius:4,padding:"3px 8px",background:"#7B1E2E",color:"#fff"}}>
+                      ✕ Nenhum
+                    </button>
+                  </div>
+                </div>
+                {/* Campo de busca */}
+                <div style={{position:"relative"}}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                    style={{position:"absolute",left:8,top:"50%",transform:"translateY(-50%)",pointerEvents:"none"}}>
+                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                  </svg>
+                  <input value={imovMapSearch} onChange={e=>setImovMapSearch(e.target.value)}
+                    placeholder="Buscar proprietário, endereço..."
+                    style={{width:"100%",boxSizing:"border-box",padding:"5px 8px 5px 26px",fontSize:11,
+                      border:`1px solid ${T.border}`,borderRadius:5,background:T.inputBg||T.cardBg2,
+                      color:T.textMain,outline:"none"}}/>
+                </div>
+              </div>
+              {/* Lista de imóveis */}
+              <div style={{flex:1,overflowY:"auto",padding:"4px 0"}}>
+                {listaFiltrada.length === 0 && (
+                  <div style={{padding:"16px 12px",fontSize:11,color:T.textMuted,textAlign:"center"}}>Nenhum resultado</div>
+                )}
+                {listaFiltrada.map(r => {
+                  // null=todos ✓ | Set vazio=nenhum ✗ | Set com itens=somente os contidos
+                  const isChecked = imovMapSel === null ? true : imovMapSel.has(r._n);
+                  const hasCoord  = !!(r.lat && r.lng);
+                  const cor = iconClrTipo(r.tipo);
+                  return (
+                    <div key={r._n} onClick={()=>hasCoord&&toggleItem(r._n)}
+                      style={{display:"flex",alignItems:"flex-start",gap:8,padding:"7px 12px",cursor:hasCoord?"pointer":"default",
+                        borderBottom:`1px solid ${T.border}`,opacity:hasCoord?1:.45,
+                        background: isChecked&&hasCoord ? "transparent" : "rgba(0,0,0,.03)",
+                        transition:"background .12s"}}>
+                      <input type="checkbox" checked={isChecked&&hasCoord} readOnly
+                        style={{marginTop:2,flexShrink:0,accentColor:"#7B1E2E",width:13,height:13,cursor:hasCoord?"pointer":"default"}}/>
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,
+                        width:18,height:18,borderRadius:"50% 50% 50% 0",transform:"rotate(-45deg)",
+                        background:cor,border:"1.5px solid rgba(255,255,255,.6)",boxShadow:"0 1px 3px rgba(0,0,0,.2)"}}>
+                        <span style={{transform:"rotate(45deg)",color:"#fff",fontSize:7,fontWeight:800}}>{r._n}</span>
+                      </div>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:11,fontWeight:700,color:T.textMain,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}} translate="no">
+                          {r.proprietario||'—'}
+                        </div>
+                        <div style={{fontSize:10,color:T.textSec,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginTop:1}} translate="no">
+                          {r.logradouro||''}{r.numero ? ', '+r.numero : ''} — {r.bairro||r.municipio||''}
+                        </div>
+                        <div style={{display:"flex",alignItems:"center",gap:4,marginTop:2}}>
+                          <span style={{fontSize:9,fontWeight:800,padding:"1px 5px",borderRadius:3,letterSpacing:".05em",textTransform:"uppercase",
+                            background:cor+"66",color:"#fff",border:`1px solid ${cor}`,textShadow:`0 0 6px ${cor}`}}>{r.tipo||'IMÓVEL'}</span>
+                          {!hasCoord && <span style={{fontSize:9,color:"#e67e22",fontWeight:600}}>sem coord.</span>}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ── Mapa ── */}
+            <div ref={imovMapRef} style={{flex:1,background:"#e8e0d8"}}/>
+          </div>
+        </div>
+      );
+    }
+    if (viewMode==="tabela") {
+      const imovCols = [
+        {key:'_chk',            label:'Sel.',            w:36,  noFilter:true, frozen:true, render:()=><input type="checkbox" style={{accentColor:'#7B1E2E',width:13,height:13,cursor:'pointer'}}/>},
+        {key:'_n',              label:'Nº',              w:38,  noFilter:true, frozen:true, render:(_,i)=>nCell(i)},
+        {key:'proprietario',    label:'Proprietário',    w:200, frozen:true,   render:row=>txtC(row.proprietario||row.titular,true)},
+        {key:'cpf_cnpj',        label:'CPF/CNPJ',        w:155, frozen:true,   render:row=>txtC(row.cpf_cnpj)},
+        {key:'tipo',            label:'Tipo',            w:115, render:row=>txtC(row.tipo)},
+        {key:'logradouro',      label:'Logradouro',      w:210, render:row=>txtC(row.logradouro||row.descricao)},
+        {key:'numero',          label:'Nº',              w:65,  render:row=>txtC(row.numero)},
+        {key:'complemento',     label:'Complemento',     w:115, render:row=>txtC(row.complemento)},
+        {key:'bairro',          label:'Bairro',          w:135, render:row=>txtC(row.bairro)},
+        {key:'municipio',       label:'Município',       w:135, render:row=>txtC(row.municipio)},
+        {key:'uf',              label:'UF',              w:55,  render:row=>txtC(row.uf)},
+        {key:'cep',             label:'CEP',             w:100, render:row=>txtC(row.cep)},
+        {key:'lat',             label:'Latitude',        w:110, geoAuto:true, render:row=>geoCell(row.lat)},
+        {key:'lng',             label:'Longitude',       w:110, geoAuto:true, render:row=>geoCell(row.lng)},
+        {key:'inscricao_predial',label:'Insc. Predial',  w:145, render:row=>txtC(row.inscricao_predial)},
+        {key:'nr_matricula',    label:'Nº Matrícula',    w:135, render:row=>txtC(row.nr_matricula||row.registro)},
+        {key:'cartorio',        label:'Cartório',        w:190, render:row=>txtC(row.cartorio)},
+        {key:'area',            label:'Área (m²)',       w:100, render:row=>txtC(row.area)},
+        {key:'data_op1',        label:'Data Op. 1',      w:110, render:row=>txtC(row.data_op1||row.aquisicao)},
+        {key:'valor_op1',       label:'Valor Op. 1 (R$)',w:140, render:row=>curCell(row.valor_op1)},
+        {key:'pagto1',          label:'Pagto. 1',        w:125, render:row=>txtC(row.pagto1)},
+        {key:'situacao1',       label:'Sit. 1',          w:90,  render:row=>txtC(row.situacao1)},
+        {key:'alienantes1',     label:'Alienantes 1',    w:190, render:row=>txtC(row.alienantes1)},
+        {key:'adquirentes1',    label:'Adquirentes 1',   w:190, render:row=>txtC(row.adquirentes1)},
+        {key:'data_op2',        label:'Data Op. 2',      w:110, render:row=>txtC(row.data_op2)},
+        {key:'valor_op2',       label:'Valor Op. 2 (R$)',w:140, render:row=>curCell(row.valor_op2)},
+        {key:'pagto2',          label:'Pagto. 2',        w:125, render:row=>txtC(row.pagto2)},
+        {key:'situacao2',       label:'Sit. 2',          w:90,  render:row=>txtC(row.situacao2)},
+        {key:'alienantes2',     label:'Alienantes 2',    w:190, render:row=>txtC(row.alienantes2)},
+        {key:'adquirentes2',    label:'Adquirentes 2',   w:190, render:row=>txtC(row.adquirentes2)},
+        {key:'valor_estimado',  label:'Valor Est. (R$)', w:145, render:row=>curCell(row.valor_estimado||row.valor)},
+        {key:'pct_valor',       label:'% Valor',         w:80,  render:row=>txtC(row.pct_valor)},
+        {key:'fonte_consulta',  label:'Fonte Consulta',  w:145, render:row=>txtC(row.fonte_consulta)},
+        {key:'data_consulta',   label:'Data Consulta',   w:120, render:row=>txtC(row.data_consulta)},
+        {key:'resumo',          label:'Resumo / Obs.',   w:220, render:row=>txtC(row.resumo)},
+        ...FONTES_POR_ENT.imovel.map(f=>({key:'_f_'+f.k, label:f.n, w:80, render:row=>fntCell(row,f.k)})),
+        {key:'_src', label:'', w:72, render:row=>locBdg(row)},
+      ];
+      return renderTabela(imovCols, imovRows, null, null, 'imovel');
+    }
+    return (
+      <div>
+        <div style={s.label}>Bens Imóveis ({det.bensImoveis.length})</div>
+        {det.bensImoveis.map((b,i)=>(
+          <div key={i} style={s.card}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+              <div>
+                <div style={{ fontSize:13, fontWeight:700, color:T.textMain }} translate="no">{b.descricao}</div>
+                <div style={{ fontSize:11, color:T.textSec, marginTop:3 }}>{b.tipo} · {b.area} · Aquisição: {b.aquisicao}</div>
+                <div style={{ fontSize:11, color:T.textMuted, marginTop:2 }}>Reg: {b.registro} · Titular: {b.titular}</div>
+              </div>
+              <span style={{ fontSize:14, fontWeight:800, color:"#c8973a" }}>{b.valor}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // ── ÁREA VEÍCULOS (aba independente)
+  const renderVeiculos = () => {
+    const veicRows = [
+      ...det.veiculos.map((v,i)=>({...v, _n:i+1, _source:'mock', marca_modelo:v.descricao, proprietario:v.titular, valor_estimado:v.valor})),
+      ...(entLocais.veiculo||[]).map((v,i)=>({...v, _n:det.veiculos.length+i+1, _source:'local'})),
+    ];
+    const veicCols = [
+      {key:'_chk',           label:'Sel.',            w:36,  noFilter:true, frozen:true, render:()=><input type="checkbox" style={{accentColor:'#7B1E2E',width:13,height:13,cursor:'pointer'}}/>},
+      {key:'_n',             label:'Nº',              w:38,  noFilter:true, frozen:true, render:(_,i)=>nCell(i)},
+      {key:'proprietario',   label:'Proprietário',    w:200, frozen:true,   render:row=>txtC(row.proprietario||row.titular,true)},
+      {key:'cpf_cnpj',       label:'CPF/CNPJ',        w:155, frozen:true,   render:row=>txtC(row.cpf_cnpj)},
+      {key:'placa',          label:'Placa',           w:115, render:row=>placaCell(row.placa)},
+      {key:'marca_modelo',   label:'Marca / Modelo',  w:200, render:row=>txtC(row.marca_modelo||row.descricao)},
+      {key:'cor',            label:'Cor',             w:90,  render:row=>txtC(row.cor)},
+      {key:'ano',            label:'Ano',             w:75,  render:row=>txtC(row.ano)},
+      {key:'chassi',         label:'Chassi',          w:170, render:row=>txtC(row.chassi)},
+      {key:'renavam',        label:'RENAVAM',         w:135, render:row=>txtC(row.renavam)},
+      {key:'municipio',      label:'Município',       w:135, render:row=>txtC(row.municipio)},
+      {key:'uf',             label:'UF',              w:55,  render:row=>txtC(row.uf)},
+      {key:'roubo',          label:'Roubo/Furto',     w:95,  render:row=>chkCell(row.roubo)},
+      {key:'blindado',       label:'Blindado',        w:85,  render:row=>chkCell(row.blindado)},
+      {key:'situacao',       label:'Situação',        w:110, render:row=>sitBdg(row.situacao)},
+      {key:'radar',          label:'Radar',           w:80,  render:row=>txtC(row.radar)},
+      {key:'data_aquisicao', label:'Aquisição',       w:115, render:row=>txtC(row.data_aquisicao||row.aquisicao)},
+      {key:'data_venda',     label:'Data Venda',      w:115, render:row=>txtC(row.data_venda)},
+      {key:'valor_estimado', label:'Valor Est. (R$)', w:145, render:row=>curCell(row.valor_estimado||row.valor)},
+      {key:'fonte_valor',    label:'Fonte Valor',     w:135, render:row=>txtC(row.fonte_valor)},
+      {key:'resumo',         label:'Resumo / Obs.',   w:200, render:row=>txtC(row.resumo||row.obs)},
+      ...FONTES_POR_ENT.veiculo.map(f=>({key:'_f_'+f.k, label:f.n, w:80, render:row=>fntCell(row,f.k)})),
+      {key:'_src', label:'', w:72, render:row=>locBdg(row)},
+    ];
+    if (viewMode==="tabela") return renderTabela(veicCols, veicRows, null, null, 'veiculo');
+    return (
+      <div>
+        <div style={s.label}>Veículos ({veicRows.length})</div>
+        {det.veiculos.map((v,i)=>(
+          <div key={i} style={s.card}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+              <div>
+                <div style={{ fontSize:13, fontWeight:700, color:T.textMain }} translate="no">{v.descricao}</div>
+                <div style={{ fontSize:11, color:T.textSec, marginTop:3 }}>Placa: {v.placa} · RENAVAM: {v.renavam}</div>
+                <div style={{ fontSize:11, color:T.textMuted, marginTop:2 }}>Titular: {v.titular} · Aquisição: {v.aquisicao}</div>
+              </div>
+              <span style={{ fontSize:14, fontWeight:800, color:"#c8973a" }}>{v.valor}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // ── ÁREA AERONAVES (aba independente)
+  const renderAeronaves = () => {
+    const aerRows = [
+      ...(det.aeronaves||[]).map((a,i)=>({...a, _n:i+1, _source:'mock'})),
+      ...(entLocais.aeronave||[]).map((a,i)=>({...a, _n:(det.aeronaves||[]).length+i+1, _source:'local'})),
+    ];
+    const aerCols = [
+      {key:'_chk',             label:'Sel.',            w:36,  noFilter:true, frozen:true, render:()=><input type="checkbox" style={{accentColor:'#7B1E2E',width:13,height:13,cursor:'pointer'}}/>},
+      {key:'_n',               label:'Nº',              w:38,  noFilter:true, frozen:true, render:(_,i)=>nCell(i)},
+      {key:'proprietario',     label:'Proprietário',    w:200, frozen:true,   render:row=>txtC(row.proprietario,true)},
+      {key:'cpf_cnpj',         label:'CPF/CNPJ',        w:155, frozen:true,   render:row=>txtC(row.cpf_cnpj)},
+      {key:'operador',         label:'Operador',        w:185, render:row=>txtC(row.operador)},
+      {key:'cpf_cnpj_op',      label:'CPF/CNPJ Op.',    w:155, render:row=>txtC(row.cpf_cnpj_op)},
+      {key:'radar',            label:'Radar',           w:75,  render:row=>chkCell(row.radar)},
+      {key:'marca',            label:'Marca',           w:130, render:row=>txtC(row.marca)},
+      {key:'fabricante',       label:'Fabricante',      w:145, render:row=>txtC(row.fabricante)},
+      {key:'modelo',           label:'Modelo',          w:130, render:row=>txtC(row.modelo)},
+      {key:'nr_serie',         label:'Nº Série',        w:135, render:row=>txtC(row.nr_serie)},
+      {key:'nr_inscricao',     label:'Nº Inscrição',    w:135, render:row=>placaCell(row.nr_inscricao)},
+      {key:'nr_matricula',     label:'Nº Matrícula',    w:125, render:row=>txtC(row.nr_matricula)},
+      {key:'ano_fabricacao',   label:'Ano',             w:75,  render:row=>txtC(row.ano_fabricacao)},
+      {key:'tipo_icao',        label:'Tipo ICAO',       w:105, render:row=>txtC(row.tipo_icao)},
+      {key:'classe',           label:'Classe',          w:125, render:row=>txtC(row.classe)},
+      {key:'categoria_registro',label:'Categoria',      w:105, render:row=>txtC(row.categoria_registro)},
+      {key:'tipo_operacao',    label:'Tipo Operação',   w:135, render:row=>txtC(row.tipo_operacao)},
+      {key:'cd_cls',           label:'Cód. Classe',     w:105, render:row=>txtC(row.cd_cls)},
+      {key:'nr_pmd',           label:'PMD (kg)',        w:90,  render:row=>txtC(row.nr_pmd)},
+      {key:'passageiros_max',  label:'Pax. Máx.',       w:85,  render:row=>txtC(row.passageiros_max)},
+      {key:'assentos',         label:'Assentos',        w:85,  render:row=>txtC(row.assentos)},
+      {key:'data_matricula',   label:'Dt. Matrícula',   w:120, render:row=>txtC(row.data_matricula)},
+      {key:'gravames',         label:'Gravames',        w:125, render:row=>txtC(row.gravames)},
+      {key:'validade_cva',     label:'Val. CVA',        w:105, render:row=>txtC(row.validade_cva)},
+      {key:'validade_ca',      label:'Val. CA',         w:105, render:row=>txtC(row.validade_ca)},
+      {key:'valor_compra',     label:'Valor Compra (R$)',w:145,render:row=>curCell(row.valor_compra)},
+      {key:'valor_estimado',   label:'Valor Est. (R$)', w:145, render:row=>curCell(row.valor_estimado)},
+      {key:'pct_valor',        label:'% Valor',         w:80,  render:row=>txtC(row.pct_valor)},
+      {key:'fonte_valor',      label:'Fonte Valor',     w:135, render:row=>txtC(row.fonte_valor)},
+      {key:'resumo',           label:'Resumo / Obs.',   w:200, render:row=>txtC(row.resumo)},
+      ...FONTES_POR_ENT.aeronave.map(f=>({key:'_f_'+f.k, label:f.n, w:80, render:row=>fntCell(row,f.k)})),
+    ];
+    if (viewMode==="tabela") return renderTabela(aerCols, aerRows, null, null, 'aeronave');
+    return (
+      <div>
+        <div style={s.label}>Aeronaves ({aerRows.length})</div>
+        {aerRows.length===0 && <div style={{color:T.textMuted,fontSize:13,padding:20}}>Nenhuma aeronave cadastrada.</div>}
+        {aerRows.map((a,i)=>(
+          <div key={i} style={s.card}>
+            <div style={{fontSize:13,fontWeight:700,color:T.textMain}} translate="no">{a.marca} {a.modelo} — {a.nr_inscricao}</div>
+            <div style={{fontSize:11,color:T.textSec,marginTop:3}}>Proprietário: {a.proprietario}</div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // ── ÁREA EMBARCAÇÕES (aba independente)
+  const renderEmbarcacoes = () => {
+    const embRows = [
+      ...(det.embarcacoes||[]).map((e,i)=>({...e, _n:i+1, _source:'mock'})),
+      ...(entLocais.embarcacao||[]).map((e,i)=>({...e, _n:(det.embarcacoes||[]).length+i+1, _source:'local'})),
+    ];
+    const embCols = [
+      {key:'_chk',            label:'Sel.',            w:36,  noFilter:true, frozen:true, render:()=><input type="checkbox" style={{accentColor:'#7B1E2E',width:13,height:13,cursor:'pointer'}}/>},
+      {key:'_n',              label:'Nº',              w:38,  noFilter:true, frozen:true, render:(_,i)=>nCell(i)},
+      {key:'proprietario',    label:'Proprietário',    w:200, frozen:true,   render:row=>txtC(row.proprietario,true)},
+      {key:'cpf_cnpj',        label:'CPF/CNPJ',        w:155, frozen:true,   render:row=>txtC(row.cpf_cnpj)},
+      {key:'radar',           label:'Radar',           w:75,  render:row=>chkCell(row.radar)},
+      {key:'nome',            label:'Nome',            w:175, render:row=>txtC(row.nome)},
+      {key:'nr_inscricao',    label:'Nº Inscrição',    w:135, render:row=>placaCell(row.nr_inscricao)},
+      {key:'tipo',            label:'Tipo',            w:115, render:row=>txtC(row.tipo)},
+      {key:'marca',           label:'Marca',           w:130, render:row=>txtC(row.marca)},
+      {key:'comprimento',     label:'Comprim. (m)',    w:105, render:row=>txtC(row.comprimento)},
+      {key:'ano',             label:'Ano',             w:75,  render:row=>txtC(row.ano)},
+      {key:'municipio_ommar', label:'Município / OMMar',w:160,render:row=>txtC(row.municipio_ommar)},
+      {key:'situacao',        label:'Situação',        w:115, render:row=>sitBdg(row.situacao)},
+      {key:'data_aquisicao',  label:'Aquisição',       w:115, render:row=>txtC(row.data_aquisicao)},
+      {key:'valor_estimado',  label:'Valor Est. (R$)', w:145, render:row=>curCell(row.valor_estimado)},
+      {key:'pct_valor',       label:'% Valor',         w:80,  render:row=>txtC(row.pct_valor)},
+      {key:'fonte_valor',     label:'Fonte Valor',     w:135, render:row=>txtC(row.fonte_valor)},
+      {key:'resumo',          label:'Resumo / Obs.',   w:200, render:row=>txtC(row.resumo)},
+      ...FONTES_POR_ENT.embarcacao.map(f=>({key:'_f_'+f.k, label:f.n, w:80, render:row=>fntCell(row,f.k)})),
+    ];
+    if (viewMode==="tabela") return renderTabela(embCols, embRows, null, null, 'embarcacao');
+    return (
+      <div>
+        <div style={s.label}>Embarcações ({embRows.length})</div>
+        {embRows.length===0 && <div style={{color:T.textMuted,fontSize:13,padding:20}}>Nenhuma embarcação cadastrada.</div>}
+        {embRows.map((e,i)=>(
+          <div key={i} style={s.card}>
+            <div style={{fontSize:13,fontWeight:700,color:T.textMain}} translate="no">{e.nome||e.marca} — {e.nr_inscricao}</div>
+            <div style={{fontSize:11,color:T.textSec,marginTop:3}}>Proprietário: {e.proprietario}</div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // ── PLACEHOLDER GENÉRICO (RIF, Dashboard, etc.)
+  const renderPlaceholder = (titulo, descricao, tipo) => {
+    const iconeMap = {
+      rif: (
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#c8973a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+          <line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
+        </svg>
+      ),
+      dashboard: (
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#c8973a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="13" width="5" height="8" rx="1"/><rect x="10" y="8" width="5" height="13" rx="1"/>
+          <rect x="17" y="3" width="5" height="18" rx="1"/>
+        </svg>
+      ),
+    };
+    return (
+      <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+        minHeight:320, padding:40, gap:16, textAlign:"center"}}>
+        <div style={{opacity:0.5}}>{iconeMap[tipo]||null}</div>
+        <div style={{fontSize:16,fontWeight:800,color:T.textMain,letterSpacing:".04em"}}>{titulo}</div>
+        <div style={{fontSize:13,color:T.textSec,maxWidth:380,lineHeight:1.6}}>{descricao}</div>
+        <div style={{marginTop:8,padding:"6px 18px",borderRadius:20,border:`1px solid #c8973a44`,
+          fontSize:11,fontWeight:700,color:"#c8973a",letterSpacing:".06em",textTransform:"uppercase"}}>
+          Em desenvolvimento
+        </div>
+      </div>
+    );
+  };
+
+  // ── ÁREA FICHA GERAL
+  const renderFicha = () => (
+    <div>
+      <div style={s.card}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:12, marginBottom:16 }}>
+          {[["Portaria",det.portaria],["Natureza",det.natureza],["Responsável",det.resp],["Data de Início",det.dataInicio]]
+            .map(([k,v])=>(
+            <div key={k} style={{ background:T.covBg, borderRadius:7, padding:"8px 12px", border:`1px solid ${T.border}` }}>
+              <div style={{ fontSize:9, color:T.textMuted, fontWeight:700, letterSpacing:".06em", textTransform:"uppercase", marginBottom:3 }}>{k}</div>
+              <div style={{ fontSize:12, color:T.textMain, fontWeight:600 }} translate="no">{v}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ background:T.covBg, borderRadius:7, padding:"10px 14px", border:`1px solid ${T.border}`, marginBottom:14 }}>
+          <div style={{ fontSize:9, color:T.textMuted, fontWeight:700, textTransform:"uppercase", letterSpacing:".06em", marginBottom:4 }}>Objeto / Sumário</div>
+          <div style={{ fontSize:12, color:T.textSec, lineHeight:1.7 }}>{det.objetoSumario}</div>
+        </div>
+        <div style={s.label}>Equipe</div>
+        <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+          {det.equipe.map((m,i)=><span key={i} style={{ ...s.tag, padding:"4px 10px", fontSize:11 }} translate="no">{m}</span>)}
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── ÁREA SOLICITAÇÕES
+  const renderSolicit = () => (
+    <div>
+      <div style={s.label}>Solicitações e Ofícios ({det.solicitacoes.length})</div>
+      {det.solicitacoes.map(sl=>(
+        <div key={sl.n} style={{ ...s.card, display:"flex", alignItems:"center", gap:16 }}>
+          <div style={{ width:32, height:32, borderRadius:8, background:T.tagBg, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:800, color:T.textSec, flexShrink:0 }}>{sl.n}</div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:12, fontWeight:700, color:T.textMain }} translate="no">{sl.dest}</div>
+            <div style={{ fontSize:11, color:T.textSec, marginTop:2 }}>{sl.assunto}</div>
+            <div style={{ fontSize:10, color:T.textMuted, marginTop:2 }}>{sl.tipo} · {sl.data}{sl.resposta ? ` · Respondido em ${sl.resposta}` : ""}</div>
+          </div>
+          <span style={{
+            fontSize:10, fontWeight:700, padding:"3px 10px", borderRadius:5, whiteSpace:"nowrap",
+            background: sl.status==="Respondido" ? "rgba(74,222,128,.12)" : sl.status==="Pendente" ? "rgba(251,191,36,.12)" : T.tagBg,
+            color: sl.status==="Respondido" ? "#4ade80" : sl.status==="Pendente" ? "#fbbf24" : T.textSec,
+          }}>{sl.status}</span>
+        </div>
+      ))}
+    </div>
+  );
+
+  // ── LINHA DO TEMPO
+  const renderTimeline = () => {
+    const cor = { marco:"#c8973a", acao:"#a78bfa", oficio:"#60a5fa", resposta:"#4ade80" };
+    return (
+      <div>
+        <div style={s.label}>Linha do Tempo</div>
+        <div style={{ position:"relative", paddingLeft:24 }}>
+          <div style={{ position:"absolute", left:8, top:0, bottom:0, width:2, background:T.border }}/>
+          {det.timeline.sort((a,b)=>a.data.localeCompare(b.data)).map((ev,i)=>(
+            <div key={i} style={{ position:"relative", marginBottom:14 }}>
+              <div style={{ position:"absolute", left:-20, top:4, width:10, height:10, borderRadius:"50%", background:cor[ev.tipo]||T.textSec, border:`2px solid ${T.pagBg}` }}/>
+              <div style={{ fontSize:10, color:T.textMuted, marginBottom:2 }}>{ev.data}</div>
+              <div style={{ fontSize:12, color:T.textSec }}>{ev.evento}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderConteudo = () => {
+    if (ilhaSel==="estudo") {
+      if (subAba==="ficha")   return renderFicha();
+      if (subAba==="solicit") return renderSolicit();
+      return <div style={{ color:T.textMuted, fontSize:13, padding:20 }}>Conteúdo em construção.</div>;
+    }
+    if (ilhaSel==="minera") {
+      if (subAba==="pf")     return renderPF();
+      if (subAba==="pj")          return renderPJ();
+      if (subAba==="imoveis")     return renderImoveis();
+      if (subAba==="veic")        return renderVeiculos();
+      if (subAba==="aeronaves")   return renderAeronaves();
+      if (subAba==="embarcacoes") return renderEmbarcacoes();
+      if (subAba==="rif")         return renderPlaceholder("RIF","Relatório de Inteligência Financeira — módulo em desenvolvimento.","rif");
+      if (subAba==="dashboard")   return renderPlaceholder("Dashboard","Painel analítico com indicadores e gráficos do caso — módulo em desenvolvimento.","dashboard");
+      return <div style={{ color:T.textMuted, fontSize:13, padding:20 }}>Conteúdo em construção.</div>;
+    }
+    if (ilhaSel==="relat") {
+      if (subAba==="ltempo") return renderTimeline();
+      return <div style={{ color:T.textMuted, fontSize:13, padding:20 }}>Conteúdo em construção.</div>;
+    }
+    return <div style={{ color:T.textMuted, fontSize:13, padding:20 }}>Conteúdo em construção.</div>;
+  };
+
+  /* ── Modal Adicionar Entidade ── */
+  const renderModalEntidade = () => {
+    const ent = ENTS_TIPOS.find(e=>e.id===entModal);
+    if (!ent) return null;
+
+    /* ── helpers de máscara ── */
+    const maskCPF  = v => { const d=v.replace(/\D/g,'').slice(0,11); if(d.length>9) return d.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/,'$1.$2.$3-$4'); if(d.length>6) return d.replace(/(\d{3})(\d{3})(\d{1,3})/,'$1.$2.$3'); if(d.length>3) return d.replace(/(\d{3})(\d{1,3})/,'$1.$2'); return d; };
+    const maskCNPJ = v => { const d=v.replace(/\D/g,'').slice(0,14); if(d.length>12) return d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{1,2})/,'$1.$2.$3/$4-$5'); if(d.length>8) return d.replace(/(\d{2})(\d{3})(\d{3})(\d{1,4})/,'$1.$2.$3/$4'); if(d.length>5) return d.replace(/(\d{2})(\d{3})(\d{1,3})/,'$1.$2.$3'); if(d.length>2) return d.replace(/(\d{2})(\d{1,3})/,'$1.$2'); return d; };
+    const maskPlaca= v => { const d=v.replace(/[^A-Z0-9]/gi,'').slice(0,7).toUpperCase(); return d.length>3?d.slice(0,3)+'-'+d.slice(3):d; };
+
+    /* ── estilos base ── */
+    const inputSt = { width:"100%", padding:"7px 10px", borderRadius:7, border:`1px solid ${T.inputBorder}`,
+      background:T.inputBg, color:T.textMain, fontSize:12, fontFamily:"'Plus Jakarta Sans',sans-serif",
+      outline:"none", boxSizing:"border-box" };
+    const labelSt = { fontSize:10, fontWeight:700, color:T.textMuted, textTransform:"uppercase",
+      letterSpacing:".05em", marginBottom:4, display:"block" };
+    const gridSt  = { display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:16 };
+    const secSt   = { fontSize:10, fontWeight:800, color:ent.cor, letterSpacing:".07em",
+      textTransform:"uppercase", marginBottom:10, marginTop:4, paddingBottom:6,
+      borderBottom:`1px solid ${T.border}` };
+
+    /* ── Field: input/select com uppercase + trim automático ── */
+    const Field = ({label, fk, type="text", options=null, full=false, mask=null, ph=null, lower=false}) => {
+      const onChange = e => {
+        let v = e.target.value;
+        if (mask==='cpf')    return setF(fk, maskCPF(v));
+        if (mask==='cnpj')   return setF(fk, maskCNPJ(v));
+        if (mask==='placa')  return setF(fk, maskPlaca(v));
+        if (type==='text' && !lower) v = v.toUpperCase();
+        setF(fk, v);
+      };
+      const onBlur = () => {
+        if (!mask && type!=='number' && type!=='date')
+          setF(fk, (formData[fk]||'').toString().replace(/\s+/g,' ').trim());
+      };
+      return (
+        <div style={full?{gridColumn:"1/-1"}:{}}>
+          <label style={labelSt}>{label}</label>
+          {options
+            ? <select value={formData[fk]||''} onChange={e=>setF(fk,e.target.value)} style={inputSt}>
+                {options.map(o=><option key={o} value={o}>{o}</option>)}
+              </select>
+            : <input type={type} value={formData[fk]||''} onChange={onChange} onBlur={onBlur}
+                style={inputSt} placeholder={ph||''}/>
+          }
+        </div>
+      );
+    };
+
+    /* ── FieldTA: textarea ── */
+    const FieldTA = ({label, fk, full=true, rows=3, ph=''}) => (
+      <div style={full?{gridColumn:"1/-1"}:{}}>
+        {label&&<label style={labelSt}>{label}</label>}
+        <textarea value={formData[fk]||''} rows={rows}
+          onChange={e=>setF(fk,e.target.value.toUpperCase())}
+          onBlur={()=>setF(fk,(formData[fk]||'').replace(/\s+/g,' ').trim())}
+          style={{...inputSt,resize:"vertical",width:"100%"}} placeholder={ph}/>
+      </div>
+    );
+
+    /* ── Toggle: switch visual ── */
+    const Toggle = ({label, fk}) => (
+      <div>
+        <div style={{...labelSt}}>&#8203;</div>
+        <div style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",
+          borderRadius:7,border:`1px solid ${T.inputBorder}`,background:T.inputBg,
+          cursor:"pointer",userSelect:"none",height:34,boxSizing:"border-box"}}
+          onClick={()=>setF(fk,!formData[fk])}>
+          <div style={{width:32,height:18,borderRadius:9,flexShrink:0,position:"relative",
+            background:formData[fk]?ent.cor:T.btnSecBorder,transition:"background .2s"}}>
+            <div style={{position:"absolute",top:2,width:14,height:14,borderRadius:"50%",
+              background:"#fff",transition:"left .2s",left:formData[fk]?14:2}}/>
+          </div>
+          <span style={{fontSize:11,color:T.textMain,fontWeight:600}}>{label}</span>
+        </div>
+      </div>
+    );
+
+    /* ── ImageUpload: foto / logo ── */
+    const ImageUpload = ({fk, label, circle=false}) => {
+      const val=formData[fk]||'';
+      return (
+        <div style={{gridColumn:"1/-1",display:"flex",alignItems:"center",gap:16,marginBottom:4,
+          padding:"12px 14px",background:T.covBg,borderRadius:8,border:`1px solid ${T.border}`}}>
+          <div style={{width:70,height:70,borderRadius:circle?'50%':8,border:`2px dashed ${T.border}`,
+            overflow:"hidden",background:T.inputBg,display:"flex",alignItems:"center",
+            justifyContent:"center",flexShrink:0,cursor:"pointer"}}
+            onClick={()=>document.getElementById('img-up-'+fk).click()}>
+            {val
+              ? <img src={val} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+              : <svg viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="1.5" width="26" height="26">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/>
+                  <circle cx="8.5" cy="8.5" r="1.5"/>
+                  <polyline points="21 15 16 10 5 21"/>
+                </svg>
+            }
+          </div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:12,fontWeight:700,color:T.textMain,marginBottom:3}}>{label}</div>
+            <div style={{fontSize:10,color:T.textMuted,marginBottom:8}}>JPG, PNG ou GIF · Máx 2 MB</div>
+            <div style={{display:"flex",gap:6}}>
+              <button type="button" onClick={()=>document.getElementById('img-up-'+fk).click()} style={{
+                padding:"4px 12px",borderRadius:6,border:`1px solid ${T.border}`,
+                background:T.btnSec,color:T.btnSecColor,fontSize:11,cursor:"pointer",
+                fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                {val?"Alterar imagem":"Selecionar arquivo"}
+              </button>
+              {val&&<button type="button" onClick={()=>setF(fk,'')} style={{
+                padding:"4px 10px",borderRadius:6,border:"1px solid rgba(248,113,113,.3)",
+                background:"rgba(248,113,113,.08)",color:"#f87171",fontSize:11,cursor:"pointer",
+                fontFamily:"'Plus Jakarta Sans',sans-serif"}}>Remover</button>}
+            </div>
+          </div>
+          <input id={'img-up-'+fk} type="file" accept="image/*" style={{display:"none"}}
+            onChange={e=>{
+              const f=e.target.files[0]; if(!f) return;
+              if(f.size>2097152){alert("Imagem muito grande. Máximo 2MB."); return;}
+              const r=new FileReader(); r.onload=ev=>setF(fk,ev.target.result); r.readAsDataURL(f);
+            }}/>
+        </div>
+      );
+    };
+
+    /* ── FontesEnt: checkboxes por entidade ── */
+    const FontesEnt = () => {
+      const lista=(FONTES_POR_ENT[entModal]||[]);
+      return (
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:5,marginBottom:16}}>
+          {lista.map(f=>{
+            const ok=!!(formData.fontes||{})[f.k];
+            return (
+              <label key={f.k} style={{display:"flex",alignItems:"center",gap:5,cursor:"pointer",
+                padding:"5px 8px",borderRadius:6,
+                border:`1px solid ${ok?"rgba(74,222,128,.3)":T.border}`,
+                background:ok?"rgba(74,222,128,.08)":T.tagBg}}>
+                <input type="checkbox" checked={ok} onChange={e=>setFont(f.k,e.target.checked)} style={{accentColor:"#4ade80",flexShrink:0}}/>
+                <span style={{fontSize:10,fontWeight:700,color:ok?"#4ade80":T.textSec}} translate="no">{f.n}</span>
+              </label>
+            );
+          })}
+        </div>
+      );
+    };
+
+    return (
+      <div style={{position:"fixed",inset:0,zIndex:700,background:"rgba(0,0,0,.65)",display:"flex",
+        alignItems:"center",justifyContent:"center",backdropFilter:"blur(3px)"}}
+        onClick={e=>e.target===e.currentTarget&&setEntModal(null)}>
+        <div style={{background:T.cardBg,borderRadius:12,width:660,maxHeight:"92vh",display:"flex",
+          flexDirection:"column",boxShadow:"0 20px 60px rgba(0,0,0,.5)",border:`1px solid ${T.border}`}}>
+
+          {/* ── Header ── */}
+          <div style={{background:`linear-gradient(135deg,${ent.cor}20,${ent.cor}08)`,
+            borderBottom:`1px solid ${ent.cor}30`,padding:"14px 20px",
+            display:"flex",alignItems:"center",gap:10,borderRadius:"12px 12px 0 0",flexShrink:0}}>
+            <div style={{width:44,height:44,borderRadius:10,display:"flex",alignItems:"center",
+              justifyContent:"center",background:`${ent.cor}18`,border:`1px solid ${ent.cor}30`,flexShrink:0}}>
+              <EntIcon id={ent.id} cor={ent.cor} size={24}/>
+            </div>
+            <div>
+              <div style={{fontSize:15,fontWeight:800,color:ent.cor}}>Nova {ent.l}</div>
+              <div style={{fontSize:10,color:T.textMuted}} translate="no">Caso: {caso.nome}</div>
+            </div>
+            <div style={{flex:1}}/>
+            <button onClick={()=>setEntModal(null)} style={{background:"none",border:"none",
+              cursor:"pointer",color:T.textMuted,fontSize:20,lineHeight:1}}>✕</button>
+          </div>
+
+          {/* ── Body ── */}
+          <div style={{overflowY:"auto",padding:"20px",flex:1}}>
+
+            {/* ════════════════ PESSOA FÍSICA ════════════════ */}
+            {entModal==="pf"&&<>
+              <div style={secSt}>Foto do Investigado</div>
+              <div style={gridSt}>
+                <ImageUpload fk="foto" label="Foto do Investigado — JPG ou PNG" circle/>
+              </div>
+
+              <div style={secSt}>Identificação</div>
+              <div style={gridSt}>
+                <Field label="Nome Completo *" fk="nome" full/>
+                <Field label="CPF *" fk="cpf" mask="cpf" ph="000.000.000-00"/>
+                <Field label="RG" fk="rg"/>
+                <Field label="Sexo" fk="sexo" options={["MASCULINO","FEMININO","NÃO INFORMADO"]}/>
+                <Field label="Data de Nascimento" fk="nasc" type="date"/>
+                <Field label="Profissão" fk="profissao"/>
+                <Field label="Nacionalidade" fk="nacionalidade"/>
+                <Field label="Naturalidade (Cidade/UF)" fk="naturalidade"/>
+                <Field label="Passaporte" fk="passaporte"/>
+              </div>
+
+              <div style={secSt}>Classificação no Caso</div>
+              <div style={gridSt}>
+                <Field label="Classificação do Alvo" fk="classificacao" options={["PERSONAGEM PRINCIPAL","PERSONAGEM SECUNDÁRIO","OPERACIONAL","LARANJA","FAMILIAR","ASSESSOR","OUTROS"]}/>
+                <Field label="Vínculo PF" fk="vinculo" options={["PRÓPRIO","PAI","MÃE","CÔNJUGE","FILHO(A)","IRMÃO/IRMÃ","SÓCIO","ASSESSOR","FUNCIONÁRIO","LARANJA","OUTROS"]}/>
+                <Field label="Direção" fk="direcao" options={["A<-->B","A-->B","A<--B"]}/>
+                <Field label="Alvo Central" fk="alvo_central"/>
+                <Field label="CPF do Alvo Central" fk="cpf_alvo" mask="cpf" ph="000.000.000-00"/>
+              </div>
+
+              <div style={secSt}>Filiação</div>
+              <div style={gridSt}>
+                <Field label="Nome do Pai" fk="pai"/>
+                <Field label="CPF do Pai" fk="cpf_pai" mask="cpf" ph="000.000.000-00"/>
+                <Field label="Nome da Mãe" fk="mae"/>
+                <Field label="CPF da Mãe" fk="cpf_mae" mask="cpf" ph="000.000.000-00"/>
+              </div>
+
+              <div style={secSt}>Serviço Público</div>
+              <div style={{...gridSt,gridTemplateColumns:"1fr 1fr 1fr 1fr"}}>
+                <Toggle label="Servidor Público" fk="servidor_publico"/>
+                <Field label="Função Pública" fk="funcao_publica"/>
+                <Field label="Nomeação" fk="nomeacao" type="date"/>
+                <Field label="Exoneração" fk="exoneracao" type="date"/>
+              </div>
+
+              <div style={secSt}>Resumo do Personagem</div>
+              <div style={gridSt}>
+                <FieldTA fk="resumo" rows={4} ph="Descreva o papel do investigado, contexto e informações relevantes..."/>
+              </div>
+
+              <div style={secSt}>Fontes Consultadas</div>
+              <FontesEnt/>
+            </>}
+
+            {/* ════════════════ PESSOA JURÍDICA ════════════════ */}
+            {entModal==="pj"&&<>
+              <div style={secSt}>Logo / Brasão</div>
+              <div style={gridSt}>
+                <ImageUpload fk="logo" label="Logo, Brasão ou Emblema da Empresa"/>
+              </div>
+
+              <div style={secSt}>Identificação</div>
+              <div style={gridSt}>
+                <Field label="Razão Social *" fk="razao" full/>
+                <Field label="CNPJ *" fk="cnpj" mask="cnpj" ph="00.000.000/0000-00"/>
+                <Field label="Nome Fantasia" fk="nome_fantasia"/>
+                <Field label="Data de Abertura" fk="data_abertura" type="date"/>
+                <Field label="Situação" fk="situacao" options={["ATIVA","IRREGULAR","SUSPENSA","BAIXADA","INAPTA","EM RECUPERAÇÃO JUDICIAL"]}/>
+                <Field label="Classificação" fk="classificacao" options={["EMPRESA PRINCIPAL","EMPRESA RELACIONADA","HOLDING","OFFSHORE","LARANJA","FORNECEDORA","CONTRATADA","OUTROS"]}/>
+                <Field label="Vínculo no Caso" fk="vinculo" options={["EMPRESA PRINCIPAL","EMPRESA RELACIONADA","HOLDING","OFFSHORE","LARANJA","FORNECEDORA","CONTRATADA","ÓRGÃO PÚBLICO","OUTROS"]}/>
+                <Field label="Órgão / Setor Público" fk="orgao_publico"/>
+              </div>
+
+              <div style={secSt}>Endereço</div>
+              <div style={gridSt}>
+                <Field label="Logradouro" fk="logradouro" full/>
+                <Field label="Número" fk="numero"/>
+                <Field label="Complemento" fk="complemento"/>
+                <Field label="Bairro" fk="bairro"/>
+                <Field label="Município" fk="municipio"/>
+                <Field label="UF" fk="uf"/>
+                <Field label="CEP" fk="cep"/>
+              </div>
+
+              <div style={secSt}>Contato</div>
+              <div style={gridSt}>
+                <Field label="Telefone" fk="telefone"/>
+                <Field label="E-Mail" fk="email" lower/>
+              </div>
+
+              <div style={secSt}>Quadro Societário / Financeiro</div>
+              <div style={gridSt}>
+                <Field label="CNAE Principal" fk="cnae_principal"/>
+                <Field label="CNAE Secundário" fk="cnae_secundario"/>
+                <Field label="Capital Social (R$)" fk="capital_social" type="number"/>
+                <Field label="Capital Integralizado (R$)" fk="integralizado" type="number"/>
+                <Field label="% Cap. Social" fk="pct_capital" type="number"/>
+                <Field label="Alvo Central" fk="alvo_central"/>
+                <Field label="CPF do Alvo Central" fk="cpf_alvo" mask="cpf" ph="000.000.000-00"/>
+              </div>
+
+              <div style={secSt}>Resumo</div>
+              <div style={gridSt}>
+                <FieldTA fk="resumo" rows={4} ph="Descreva a empresa, seu papel no caso e informações relevantes..."/>
+              </div>
+
+              <div style={secSt}>Fontes Consultadas</div>
+              <FontesEnt/>
+            </>}
+
+            {/* ════════════════ VEÍCULO ════════════════ */}
+            {entModal==="veiculo"&&<>
+              <div style={secSt}>Proprietário</div>
+              <div style={gridSt}>
+                <Field label="Proprietário *" fk="proprietario"/>
+                <Field label="CPF / CNPJ *" fk="cpf_cnpj" ph="CPF ou CNPJ do proprietário"/>
+              </div>
+
+              <div style={secSt}>Identificação do Veículo</div>
+              <div style={gridSt}>
+                <Field label="Placa *" fk="placa" mask="placa" ph="AAA-0000"/>
+                <Field label="Marca / Modelo *" fk="marca_modelo"/>
+                <Field label="Cor" fk="cor"/>
+                <Field label="Ano de Fabricação" fk="ano" type="number"/>
+                <Field label="Chassi" fk="chassi"/>
+                <Field label="RENAVAM" fk="renavam"/>
+                <Field label="Município" fk="municipio"/>
+                <Field label="UF" fk="uf"/>
+              </div>
+
+              <div style={secSt}>Situação e Restrições</div>
+              <div style={{...gridSt,gridTemplateColumns:"1fr 1fr 1fr 1fr"}}>
+                <Toggle label="Roubo / Furto" fk="roubo"/>
+                <Toggle label="Blindado" fk="blindado"/>
+                <Field label="Situação" fk="situacao" options={["REGULAR","IRREGULAR","RESTRIÇÃO","APREENDIDO","OUTROS"]}/>
+                <Field label="Radar" fk="radar"/>
+              </div>
+
+              <div style={secSt}>Financeiro / Histórico</div>
+              <div style={gridSt}>
+                <Field label="Data de Aquisição" fk="data_aquisicao" type="date"/>
+                <Field label="Data da Venda" fk="data_venda" type="date"/>
+                <Field label="Valor Estimado (R$)" fk="valor_estimado" type="number"/>
+                <Field label="Fonte de Consulta — Valor" fk="fonte_valor"/>
+                <Field label="Data da Consulta — Valor" fk="data_consulta_valor" type="date"/>
+              </div>
+
+              <div style={secSt}>Resumo / Observações</div>
+              <div style={gridSt}>
+                <FieldTA fk="resumo" rows={3} ph="Informações adicionais sobre o veículo..."/>
+              </div>
+
+              <div style={secSt}>Fontes Consultadas</div>
+              <FontesEnt/>
+            </>}
+
+            {/* ════════════════ AERONAVE ════════════════ */}
+            {entModal==="aeronave"&&<>
+              <div style={secSt}>Proprietário / Operador</div>
+              <div style={gridSt}>
+                <Field label="Proprietário *" fk="proprietario"/>
+                <Field label="CPF / CNPJ do Proprietário *" fk="cpf_cnpj" ph="CPF ou CNPJ"/>
+                <Field label="Operador" fk="operador"/>
+                <Field label="CPF / CNPJ do Operador" fk="cpf_cnpj_op" ph="CPF ou CNPJ"/>
+                <Toggle label="Radar" fk="radar"/>
+              </div>
+
+              <div style={secSt}>Identificação</div>
+              <div style={gridSt}>
+                <Field label="Marca *" fk="marca"/>
+                <Field label="Fabricante" fk="fabricante"/>
+                <Field label="Modelo" fk="modelo"/>
+                <Field label="Nº Série" fk="nr_serie"/>
+                <Field label="Nº Inscrição ANAC *" fk="nr_inscricao"/>
+                <Field label="Nº Matrícula" fk="nr_matricula"/>
+                <Field label="Ano de Fabricação" fk="ano_fabricacao" type="number"/>
+                <Field label="Tipo ICAO" fk="tipo_icao"/>
+              </div>
+
+              <div style={secSt}>Características Técnicas</div>
+              <div style={gridSt}>
+                <Field label="Classe da Aeronave" fk="classe" options={["TRANSPORTE","TÁXI AÉREO","PARTICULAR","INSTRUÇÃO","EXPERIMENTAL","OUTROS"]}/>
+                <Field label="Categoria de Registro" fk="categoria_registro" options={["PRIVADA","COMERCIAL","PÚBLICA"]}/>
+                <Field label="Tipo de Operação" fk="tipo_operacao"/>
+                <Field label="Código Classe (CLS)" fk="cd_cls"/>
+                <Field label="NR PMD (kg)" fk="nr_pmd" type="number"/>
+                <Field label="Passageiros Máx." fk="passageiros_max" type="number"/>
+                <Field label="Assentos" fk="assentos" type="number"/>
+              </div>
+
+              <div style={secSt}>Registro e Gravames</div>
+              <div style={gridSt}>
+                <Field label="Data da Matrícula" fk="data_matricula" type="date"/>
+                <Field label="Gravames" fk="gravames"/>
+                <Field label="Validade CVA" fk="validade_cva" type="date"/>
+                <Field label="Validade CA" fk="validade_ca" type="date"/>
+              </div>
+
+              <div style={secSt}>Financeiro</div>
+              <div style={gridSt}>
+                <Field label="Valor de Compra (R$)" fk="valor_compra" type="number"/>
+                <Field label="Valor Estimado (R$)" fk="valor_estimado" type="number"/>
+                <Field label="% do Valor Estimado" fk="pct_valor" type="number"/>
+                <Field label="Fonte de Consulta — Valor" fk="fonte_valor"/>
+                <Field label="Data da Consulta — Valor" fk="data_consulta_valor" type="date"/>
+              </div>
+
+              <div style={secSt}>Resumo / Observações</div>
+              <div style={gridSt}>
+                <FieldTA fk="resumo" rows={3} ph="Informações adicionais sobre a aeronave..."/>
+              </div>
+
+              <div style={secSt}>Fontes Consultadas</div>
+              <FontesEnt/>
+            </>}
+
+            {/* ════════════════ EMBARCAÇÃO ════════════════ */}
+            {entModal==="embarcacao"&&<>
+              <div style={secSt}>Proprietário</div>
+              <div style={gridSt}>
+                <Field label="Proprietário *" fk="proprietario"/>
+                <Field label="CPF / CNPJ *" fk="cpf_cnpj" ph="CPF ou CNPJ"/>
+                <Toggle label="Radar" fk="radar"/>
+              </div>
+
+              <div style={secSt}>Identificação</div>
+              <div style={gridSt}>
+                <Field label="Nome da Embarcação *" fk="nome"/>
+                <Field label="Nº Inscrição — Capitania *" fk="nr_inscricao"/>
+                <Field label="Tipo" fk="tipo" options={["LANCHA","VELEIRO","IATE","REBOCADOR","CATAMARÃ","CANOA","BOTE","OUTROS"]}/>
+                <Field label="Marca" fk="marca"/>
+                <Field label="Comprimento (m)" fk="comprimento" type="number"/>
+                <Field label="Ano de Fabricação" fk="ano" type="number"/>
+                <Field label="Município / OMMar" fk="municipio_ommar"/>
+                <Field label="Situação" fk="situacao" options={["REGULAR","IRREGULAR","APREENDIDA","OUTROS"]}/>
+              </div>
+
+              <div style={secSt}>Financeiro</div>
+              <div style={gridSt}>
+                <Field label="Data de Aquisição" fk="data_aquisicao" type="date"/>
+                <Field label="Valor Estimado (R$)" fk="valor_estimado" type="number"/>
+                <Field label="% do Valor Estimado" fk="pct_valor" type="number"/>
+                <Field label="Fonte de Consulta — Valor" fk="fonte_valor"/>
+                <Field label="Data da Consulta — Valor" fk="data_consulta_valor" type="date"/>
+              </div>
+
+              <div style={secSt}>Resumo / Observações</div>
+              <div style={gridSt}>
+                <FieldTA fk="resumo" rows={3} ph="Informações adicionais sobre a embarcação..."/>
+              </div>
+
+              <div style={secSt}>Fontes Consultadas</div>
+              <FontesEnt/>
+            </>}
+
+            {/* ════════════════ IMÓVEL ════════════════ */}
+            {entModal==="imovel"&&<>
+              <div style={secSt}>Proprietário</div>
+              <div style={gridSt}>
+                <Field label="Proprietário *" fk="proprietario"/>
+                <Field label="CPF / CNPJ *" fk="cpf_cnpj" ph="CPF ou CNPJ"/>
+              </div>
+
+              <div style={secSt}>Identificação do Imóvel</div>
+              <div style={gridSt}>
+                <Field label="Tipo de Imóvel" fk="tipo" options={["RESIDENCIAL","COMERCIAL","RURAL","INDUSTRIAL","APARTAMENTO","TERRENO","OUTROS"]}/>
+                <Field label="Área (m²)" fk="area" type="number"/>
+                <Field label="Logradouro *" fk="logradouro" full/>
+                <Field label="Número" fk="numero"/>
+                <Field label="Complemento" fk="complemento"/>
+                <Field label="Bairro" fk="bairro"/>
+                <Field label="Município" fk="municipio"/>
+                <Field label="UF" fk="uf"/>
+                <Field label="CEP" fk="cep"/>
+                <Field label="Latitude" fk="lat"/>
+                <Field label="Longitude" fk="lng"/>
+              </div>
+
+              <div style={secSt}>Registro Imobiliário</div>
+              <div style={gridSt}>
+                <Field label="Inscrição Predial" fk="inscricao_predial"/>
+                <Field label="Nº de Matrícula *" fk="nr_matricula"/>
+                <Field label="Cartório de Registro de Imóveis" fk="cartorio" full/>
+              </div>
+
+              <div style={{...secSt,color:"#a78bfa"}}>Transação 1</div>
+              <div style={gridSt}>
+                <Field label="Data da Operação" fk="data_op1" type="date"/>
+                <Field label="Valor da Transação (R$)" fk="valor_op1" type="number"/>
+                <Field label="Forma de Pagamento" fk="pagto1" options={["—","FINANCIAMENTO","PERMUTA","DOAÇÃO","DAÇÃO EM PAGAMENTO","OUTROS"]}/>
+                <Field label="Situação" fk="situacao1" options={["—","ATIVO","CANCELADO","PENDENTE"]}/>
+                <Field label="Alienantes" fk="alienantes1" full/>
+                <Field label="Adquirentes" fk="adquirentes1" full/>
+              </div>
+
+              <div style={{...secSt,color:"#60a5fa"}}>Transação 2 (se houver)</div>
+              <div style={gridSt}>
+                <Field label="Data da Operação" fk="data_op2" type="date"/>
+                <Field label="Valor da Transação (R$)" fk="valor_op2" type="number"/>
+                <Field label="Forma de Pagamento" fk="pagto2" options={["—","FINANCIAMENTO","PERMUTA","DOAÇÃO","DAÇÃO EM PAGAMENTO","OUTROS"]}/>
+                <Field label="Situação" fk="situacao2" options={["—","ATIVO","CANCELADO","PENDENTE"]}/>
+                <Field label="Alienantes" fk="alienantes2" full/>
+                <Field label="Adquirentes" fk="adquirentes2" full/>
+              </div>
+
+              <div style={secSt}>Avaliação</div>
+              <div style={gridSt}>
+                <Field label="Valor Estimado (R$)" fk="valor_estimado" type="number"/>
+                <Field label="% do Valor Estimado" fk="pct_valor" type="number"/>
+                <Field label="Fonte de Consulta" fk="fonte_consulta"/>
+                <Field label="Data da Consulta" fk="data_consulta" type="date"/>
+              </div>
+
+              <div style={secSt}>Resumo / Observações</div>
+              <div style={gridSt}>
+                <FieldTA fk="resumo" rows={3} ph="Informações adicionais sobre o imóvel..."/>
+              </div>
+
+              <div style={secSt}>Fontes Consultadas</div>
+              <FontesEnt/>
+            </>}
+
+          </div>
+
+          {/* ── Footer ── */}
+          <div style={{padding:"14px 20px",borderTop:`1px solid ${T.border}`,
+            display:"flex",justifyContent:"flex-end",gap:10,flexShrink:0}}>
+            <button onClick={()=>setEntModal(null)} style={{padding:"7px 18px",borderRadius:7,
+              border:`1px solid ${T.border}`,background:T.btnSec,color:T.btnSecColor,
+              fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+              Cancelar
+            </button>
+            <button onClick={salvarEntidade} style={{padding:"7px 20px",borderRadius:7,border:"none",
+              background:`linear-gradient(135deg,${ent.cor},${ent.cor}bb)`,color:"#fff",
+              fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+              Salvar {ent.l}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const ilhaAtiva = det.ilhas.find(i=>i.id===ilhaSel);
+
+  return (
+    <div style={s.page}>
+      {/* BREADCRUMB — faixa fina de contexto (topbar principal persiste acima) */}
+      <div style={{
+        background:T.mainBg, borderBottom:`1px solid ${T.border}`,
+        padding:"0 20px", height:36, display:"flex", alignItems:"center", gap:8, flexShrink:0,
+      }}>
+        <span style={{ fontSize:11, color:T.textMuted }}>Painel</span>
+        <span style={{ fontSize:11, color:T.textMuted }}>›</span>
+        <span onClick={()=>setShowSidebar(v=>!v)}
+          title={showSidebar ? "Fechar painel lateral" : "Abrir painel lateral"}
+          style={{ fontSize:11, fontWeight:700, color:"#c8973a", cursor:"pointer",
+            display:"flex", alignItems:"center", gap:5, padding:"2px 8px", borderRadius:5,
+            background: showSidebar ? "rgba(200,151,58,.15)" : "transparent",
+            border: showSidebar ? "1px solid rgba(200,151,58,.3)" : "1px solid transparent",
+            transition:"all .2s", userSelect:"none",
+          }} translate="no">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#c8973a" strokeWidth="2" strokeLinecap="round" width="12" height="12">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <line x1="9" y1="3" x2="9" y2="21"/>
+          </svg>
+          {caso.nome}
+        </span>
+        <span style={{ fontSize:10, color:T.textMuted }}>·</span>
+        <span style={{ fontSize:11, color:T.textSec }}>{det.natureza}</span>
+        <div style={{ flex:1 }}/>
+        <span style={{ fontSize:10, color:T.textMuted }} translate="no">{det.portaria}</span>
+        <span style={{ fontSize:11, color:T.textSec, background:T.tagBg, padding:"2px 10px", borderRadius:5, border:`1px solid ${T.border}` }} translate="no">{det.resp}</span>
+      </div>
+
+      {/* ILHAS — barra horizontal */}
+      <div style={{ background:T.mainBg, borderBottom:`1px solid ${T.border}`, padding:"0 24px", display:"flex", gap:2, overflowX:"auto" }}>
+        {det.ilhas.map(il=>{
+          const ativo = ilhaSel===il.id;
+          return (
+            <button key={il.id} onClick={()=>handleIlha(il.id)} style={{
+              padding:"7px 16px", border:"none", cursor:"pointer",
+              background: ativo ? T.cardBg : "none",
+              borderBottom: `3px solid ${ativo ? il.acc : "transparent"}`,
+              color: ativo ? il.acc : T.textSec,
+              fontSize:12, fontWeight:700, whiteSpace:"nowrap",
+              transition:"all .2s",
+            }}>
+              {il.nome}
+              <span style={{ marginLeft:8, fontSize:10, fontWeight:800,
+                color: il.pct===100?"#4ade80": il.pct>0?il.acc:T.textMuted,
+                background: il.pct===100?"rgba(74,222,128,.1)": il.pct>0?`${il.acc}15`:"none",
+                padding: il.pct>0?"2px 6px":"0", borderRadius:4,
+              }}>{il.pct}%</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* CORPO */}
+      <div style={s.body}>
+        {/* Sidebar — visível apenas quando showSidebar=true */}
+        <div style={{
+          width: showSidebar ? 240 : 0,
+          overflow: "hidden",
+          transition: "width .25s ease",
+          flexShrink: 0,
+        }}>
+          {showSidebar && renderSidebar()}
+        </div>
+        <div style={{...s.main, ...(subAba==="imoveis"&&viewMode==="mapa"?{padding:"8px 12px 0"}:{})}}>
+          {/* Cabeçalho da ilha ativa */}
+          <div style={{ marginBottom:6, display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ width:3, height:22, borderRadius:2, background:ilhaAtiva?.acc||"#c8973a" }}/>
+            <div>
+              <div style={{ fontSize:13, fontWeight:800, color:T.textMain }} translate="no">{ilhaAtiva?.nome}</div>
+              <div style={{ fontSize:10, color:T.textSec }}>{ilhaAtiva?.status} · {ilhaAtiva?.dias}/{ilhaAtiva?.total} dias</div>
+            </div>
+            <div style={{ flex:1 }}/>
+            <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+              {/* Botão Adicionar Entidade — apenas na ilha Mineração */}
+              {ilhaSel==="minera"&&(
+                <div style={{ position:"relative" }}>
+                  <button onClick={()=>setShowEntMenu(v=>!v)} style={{
+                    background:"rgba(167,139,250,.15)", border:"1px solid rgba(167,139,250,.4)",
+                    borderRadius:8, padding:"7px 14px", cursor:"pointer", color:"#a78bfa",
+                    fontSize:11, fontWeight:700, display:"flex", alignItems:"center", gap:6,
+                    fontFamily:"'Plus Jakarta Sans',sans-serif",
+                  }}>
+                    <span style={{fontSize:14,lineHeight:1,fontWeight:900}}>＋</span> Adicionar Entidade
+                  </button>
+                  {showEntMenu&&<>
+                    <div style={{position:"fixed",inset:0,zIndex:598}} onClick={()=>setShowEntMenu(false)}/>
+                    <div style={{
+                      position:"absolute",right:0,top:"calc(100% + 6px)",zIndex:599,
+                      background:T.cardBg,border:`1px solid ${T.border}`,borderRadius:10,
+                      boxShadow:"0 8px 32px rgba(0,0,0,.45)",padding:6,minWidth:200,
+                    }}>
+                      {ENTS_TIPOS.map(e=>(
+                        <div key={e.id} onClick={()=>abrirEntModal(e.id)} style={{
+                          display:"flex",alignItems:"center",gap:10,padding:"9px 12px",
+                          borderRadius:7,cursor:"pointer",transition:"background .12s",
+                        }}
+                        onMouseEnter={ev=>ev.currentTarget.style.background=T.ilhaBg}
+                        onMouseLeave={ev=>ev.currentTarget.style.background="transparent"}>
+                          <span style={{width:24,display:"flex",alignItems:"center",justifyContent:"center"}}><EntIcon id={e.id} cor={e.cor} size={19}/></span>
+                          <span style={{fontSize:12,fontWeight:600,color:T.textMain}}>{e.l}</span>
+                          <div style={{flex:1}}/>
+                          <div style={{width:7,height:7,borderRadius:"50%",background:e.cor,flexShrink:0}}/>
+                        </div>
+                      ))}
+                    </div>
+                  </>}
+                </div>
+              )}
+              <div style={{ textAlign:"right" }}>
+                <div style={{ fontSize:11, color:T.textMuted }}>Progresso</div>
+                <div style={{ fontSize:18, fontWeight:800, color:ilhaAtiva?.acc }}>{ilhaAtiva?.pct}%</div>
+              </div>
+            </div>
+          </div>
+
+          {renderSubTabs()}
+          {renderConteudo()}
+        </div>
+      </div>
+      {/* Modal de entidade */}
+      {entModal&&renderModalEntidade()}
+      {/* Modal de coluna extra */}
+      {renderAddColModal()}
+      {/* ── Rodapé fixo — igual ao PainelPrincipal ── */}
+      <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:150,
+        background:C.bordo,borderTop:"2px solid "+C.bordoC,
+        padding:"6px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",
+        boxShadow:"0 -2px 12px rgba(0,0,0,.2)"}}>
+        <span style={{fontSize:10,color:"rgba(255,255,255,.4)"}}>
+          CI² · NAPPRA — Sistema de Investigação Patrimonial e Recuperação de Ativos · MPRJ
+        </span>
+        <div style={{display:"flex",alignItems:"center",gap:16}}>
+          <RelogioRodape/>
+          <span style={{fontSize:10,color:"rgba(255,255,255,.4)",borderLeft:"1px solid rgba(255,255,255,.2)",paddingLeft:16}}>
+            v 1.0.0 · 2026
+          </span>
+        </div>
+      </div>
+      <div style={{height:36}}/>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════
    PAINEL PRINCIPAL
 ══════════════════════════════════════════ */
 function PainelPrincipal({ usuario, onLogout }) {
@@ -1314,6 +3960,25 @@ function PainelPrincipal({ usuario, onLogout }) {
   const [tema, setTema]            = useState(()=>{
     return localStorage.getItem("nappra_tema_"+usuario.matricula) || "bege-watermark";
   });
+  const [temaCaso, setTemaCaso]    = useState(()=>{
+    return localStorage.getItem("nappra_tema_caso_"+usuario.matricula) || "claro";
+  });
+  const [abasAbertas, setAbasAbertas] = useState([]);   // casos abertos como abas
+  const [abaAtiva,   setAbaAtiva]    = useState(null);  // caso object | null = painel
+
+  const abrirCaso = (caso) => {
+    if (caso.id !== 99) return; // piloto: apenas CASO TESTE por ora
+    setAbasAbertas(prev => prev.find(a=>a.id===caso.id) ? prev : [...prev, caso]);
+    setAbaAtiva(caso);
+  };
+  const fecharAba = (casoId, e) => {
+    if (e) e.stopPropagation();
+    setAbasAbertas(prev => {
+      const novas = prev.filter(a=>a.id!==casoId);
+      setAbaAtiva(old => old?.id===casoId ? (novas.length>0?novas[novas.length-1]:null) : old);
+      return novas;
+    });
+  };
 
   const isDark      = tema==="dark-premium";
   const cardBg      = isDark ? "#1a1f2e"             : C.branco;
@@ -1958,7 +4623,9 @@ function PainelPrincipal({ usuario, onLogout }) {
             setTema(t);
             localStorage.setItem("nappra_tema_"+usuario.matricula, t);
           }}
-          usuario={usuario}/>
+          usuario={usuario}
+          temaCasoAtual={temaCaso}
+          setTemaCasoLocal={t=>setTemaCaso(t)}/>
       )}
 
       {/* TOPBAR — 2 níveis */}
@@ -2224,7 +4891,7 @@ function PainelPrincipal({ usuario, onLogout }) {
                   cor={C.verde}
                   expanded={expandAtivos}
                   setExpanded={v=>{setEA(v);if(!v)return;setSubCasos("ativos");setAba("painel");}}
-                  onSelect={caso=>{setSubCasos("ativos");setAba("painel");setCaso(caso);}}/>
+                  onSelect={caso=>{ setSubCasos("ativos"); setAba("painel"); setCaso(caso); abrirCaso(caso); }}/>
 
                 {/* Concluídos */}
                 <CategoriaCasos
@@ -2233,7 +4900,7 @@ function PainelPrincipal({ usuario, onLogout }) {
                   cor={C.azul}
                   expanded={expandFinais}
                   setExpanded={v=>{setEF(v);if(!v)return;setSubCasos("finais");setAba("painel");}}
-                  onSelect={caso=>{setSubCasos("finais");setAba("painel");setCaso(caso);}}/>
+                  onSelect={caso=>{ setSubCasos("finais"); setAba("painel"); setCaso(caso); abrirCaso(caso); }}/>
 
                 {/* Aguardando */}
                 <CategoriaCasos
@@ -2307,8 +4974,73 @@ function PainelPrincipal({ usuario, onLogout }) {
         </div>
       </div>
 
+      {/* BARRA DE ABAS — fixa logo abaixo da topbar, visível quando há abas abertas */}
+      {abasAbertas.length>0&&(
+        <div style={{
+          position:"fixed", top:76, left:0, right:0, zIndex:190, height:36,
+          background:"#12172a", borderBottom:"1px solid rgba(255,255,255,.08)",
+          display:"flex", alignItems:"stretch", overflowX:"auto",
+          boxShadow:"0 2px 8px rgba(0,0,0,.25)",
+        }}>
+          {/* Aba "Painel" (home) */}
+          <div onClick={()=>setAbaAtiva(null)} style={{
+            display:"flex", alignItems:"center", gap:6, padding:"0 16px",
+            cursor:"pointer", fontSize:11, fontWeight:600, flexShrink:0,
+            background: abaAtiva===null ? "rgba(123,30,46,.5)" : "transparent",
+            borderRight:"1px solid rgba(255,255,255,.07)",
+            borderBottom: abaAtiva===null ? "2px solid #c8973a" : "2px solid transparent",
+            color: abaAtiva===null ? "#fff" : "rgba(255,255,255,.5)",
+            transition:"all .15s",
+          }}>
+            <span>🏠</span> Painel
+          </div>
+          {/* Abas dos casos */}
+          {abasAbertas.map(c=>(
+            <div key={c.id} onClick={()=>setAbaAtiva(c)} style={{
+              display:"flex", alignItems:"center", gap:6, padding:"0 14px",
+              cursor:"pointer", fontSize:11, fontWeight:600, flexShrink:0,
+              background: abaAtiva?.id===c.id ? "rgba(123,30,46,.5)" : "transparent",
+              borderRight:"1px solid rgba(255,255,255,.07)",
+              borderBottom: abaAtiva?.id===c.id ? "2px solid #c8973a" : "2px solid transparent",
+              color: abaAtiva?.id===c.id ? "#fff" : "rgba(255,255,255,.5)",
+              transition:"all .15s", maxWidth:220,
+            }}>
+              <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }} translate="no">{c.nome}</span>
+              <span onClick={e=>fecharAba(c.id,e)} style={{
+                marginLeft:4, width:16, height:16, borderRadius:"50%",
+                display:"flex", alignItems:"center", justifyContent:"center",
+                fontSize:10, lineHeight:1,
+                background:"rgba(255,255,255,.1)", color:"rgba(255,255,255,.6)",
+                flexShrink:0, cursor:"pointer",
+                transition:"background .15s",
+              }} onMouseEnter={e=>e.currentTarget.style.background="rgba(200,50,50,.6)"}
+                 onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,.1)"}>✕</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* TELA DE CASO — overlay abaixo da topbar+tabsbar quando há aba ativa */}
+      {abaAtiva&&(
+        <div style={{
+          position:"fixed",
+          top: abasAbertas.length>0 ? 112 : 76,
+          left:0, right:0, bottom:0, zIndex:180, overflowY:"auto",
+        }}>
+          <TelaCaso
+            caso={abaAtiva}
+            temaCaso={temaCaso}
+            usuario={usuario}/>
+        </div>
+      )}
+
       {/* CONTEÚDO PRINCIPAL */}
-      <div id="nappra-main" style={{ marginTop:76,marginLeft:sidebarAberta?220:0,flex:1,padding:24,transition:"margin-left .25s ease" }}>
+      <div id="nappra-main" style={{
+        marginTop: abasAbertas.length>0 ? 112 : 76,
+        marginLeft:sidebarAberta?220:0, flex:1, padding:24,
+        transition:"margin-left .25s ease",
+        display: abaAtiva ? "none" : "block",
+      }}>
         {/* Cabeçalho institucional — visível apenas na impressão */}
         <div id="print-header" style={{display:"none",width:"100%",marginBottom:16}}>
 
@@ -2924,7 +5656,16 @@ function PainelPrincipal({ usuario, onLogout }) {
                              opacity:subCasos==="aguard"?0.55:1 }}>
                     <span style={{ fontSize:13,fontWeight:700,
                                    color:subCasos==="aguard"?C.cinzaT:C.bordo }}>
-                      {caso.nome}
+                      {caso.id===99
+                        ? <span
+                            onClick={e=>{ e.stopPropagation(); abrirCaso(caso); }}
+                            style={{ textDecoration:"underline", textDecorationColor:"rgba(123,30,46,.4)", cursor:"pointer" }}
+                            title="Abrir tela do caso">
+                            {caso.nome}
+                            <span style={{ marginLeft:5,fontSize:9,fontWeight:800,padding:"1px 6px",borderRadius:4,background:"rgba(212,160,23,.15)",color:"#c8973a",border:"1px solid rgba(212,160,23,.3)" }}>PILOTO</span>
+                          </span>
+                        : caso.nome
+                      }
                       {caso.diasSemMov>=7&&subCasos==="ativos"&&(
                         <span style={{ marginLeft:6,fontSize:9,color:"#b07d28",
                                        background:"#fff8e8",borderRadius:10,
