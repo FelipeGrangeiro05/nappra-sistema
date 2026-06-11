@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm start *)",
+      "Read(//c/Users/ESMERALDA/AppData/Roaming/Claude/local-agent-mode-sessions/skills-plugin/bfec6960-e4dc-4148-91ef-b149f03c250c/cceb940a-c9af-43c4-a925-6234ab28b258/skills/web-artifacts-builder/**)",
+      "Bash(bash scripts/init-artifact.sh nappra-preview)",
+      "Bash(bash scripts/bundle-artifact.sh nappra-preview)",
+      "Bash(bash ../scripts/bundle-artifact.sh)",
+      "Bash(npx vite *)",
+      "Bash(pnpm approve-builds *)",
+      "Bash(pnpm exec *)",
+      "Bash(node -e \"const fs=require\\('fs'\\);const c=fs.readFileSync\\('src/App.js','utf8'\\);const lines=c.split\\('\\\\n'\\);let open=0,close=0;for\\(let i=1872;i<=2415;i++\\){const l=lines[i-1]||'';const o=\\(l.match\\(/<div/g\\)||[]\\).length;const cl=\\(l.match\\(/<\\\\/div>/g\\)||[]\\).length;open+=o;close+=cl;}console.log\\('Opens:',open,'Closes:',close,'Diff:',open-close\\);\")",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"var fs=require\\('fs'\\);var c=fs.readFileSync\\('src/App.js','utf8'\\);var chunk=c.split\\('\\\\n'\\).slice\\(1871,2500\\).join\\('\\\\n'\\);var opens=\\(chunk.match\\(/<div[\\\\s>]/g\\)||[]\\).length;var closes=\\(chunk.match\\(/<\\\\/div>/g\\)||[]\\).length;var mlsc=\\(chunk.match\\(/<div[\\\\s\\\\S]*?\\\\/>/g\\)||[]\\).length;console.log\\('opens',opens,'closes',closes,'mlsc',mlsc,'net',opens-closes-mlsc\\);\")",
+      "Bash(npx react-scripts *)",
+      "Bash(npm install *)",
+      "Bash(node -e \"const p=require\\('./node_modules/jspdf/package.json'\\);console.log\\('jsPDF',p.version\\);\")",
+      "Bash(dir \"C:\\\\Users\\\\ESMERALDA\\\\Downloads\" /b /o:d)",
+      "Bash(findstr /i \"brasao\\\\|mprj\\\\|marca\\\\|png\\\\|jpg\")",
+      "Bash(awk 'NR==2{print NR\": \"substr\\($0,1,100\\); exit}' \"C:/Users/ESMERALDA/nappra-sistema/src/App.js\")",
+      "Bash(npm run *)",
+      "Bash(node -e \"const x=require\\('xlsx-js-style'\\); const wb=x.utils.book_new\\(\\); const ws=x.utils.aoa_to_sheet\\([['a']]\\); ws['!views']=[{showGridLines:false}]; x.utils.book_append_sheet\\(wb,ws,'S1'\\); const buf=x.write\\(wb,{bookType:'xlsx',type:'array'}\\); const s=Buffer.from\\(buf\\).toString\\('binary'\\); console.log\\('has showGridLines:', s.includes\\('showGridLines'\\)\\);\")",
+      "Bash(where ngrok *)",
+      "Bash(ngrok --version)",
+      "Bash(npx --yes localtunnel --version)",
+      "Bash(curl -s -o nul -w \"%{http_code}\" http://localhost:3000)",
+      "Bash(ping -n 4 127.0.0.1)",
+      "Bash(npx vercel *)",
+      "Bash(npx parcel *)",
+      "Bash(node_modules/.bin/parcel.CMD build *)",
+      "Bash(cmd /c \"node_modules\\\\.bin\\\\parcel.CMD build index.html --no-source-maps --dist-dir dist-bundle 2>&1\")",
+      "Bash(node node_modules/.bin/parcel build index.html --no-source-maps --dist-dir dist-bundle)",
+      "Bash(node node_modules/parcel/lib/cli.js build index.html --no-source-maps --dist-dir dist-bundle)",
+      "Bash(node node_modules/vite/bin/vite.js build)",
+      "Bash(git init *)",
+      "Bash(git branch *)",
+      "Bash(echo \"nappra-preview.html\")",
+      "Bash(git remote *)",
+      "Bash(git config *)",
+      "Bash(git add *)"
+    ]
+  }
+}
